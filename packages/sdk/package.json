@@ -1,0 +1,24 @@
+{
+  "name": "@swarmvision/sdk",
+  "version": "0.1.0",
+  "description": "SwarmVision Graph SDK for integrating with the visualization system",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "npm run build --workspace=@swarmvision/shared-types && tsc",
+    "lint": "tsc --noEmit",
+    "type-check": "tsc --noEmit",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@swarmvision/shared-types": "*"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.37",
+    "typescript": "^5.2.2"
+  }
+}

@@ -1,0 +1,58 @@
+.timeline-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.timeline-chart-card {
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.timeline-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.timeline-chart-header h4 {
+  margin: 0;
+  color: #f8fafc;
+}
+
+.timeline-chart-header p {
+  margin: 0.3rem 0 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+}
+
+.timeline-chart-header strong {
+  font-size: 1.2rem;
+  color: #e2e8f0;
+}
+
+.timeline-chart-svg {
+  width: 100%;
+  height: 84px;
+  margin-top: 1rem;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
+    rgba(2, 6, 23, 0.45);
+}
+
+.timeline-chart-footnote {
+  display: block;
+  margin-top: 0.55rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+@media (max-width: 1200px) {
+  .timeline-chart-grid {
+    grid-template-columns: 1fr;
+  }
+}

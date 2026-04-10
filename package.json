@@ -1,0 +1,28 @@
+{
+  "name": "swarmvision-graph",
+  "version": "0.1.0",
+  "description": "Real-time AI agent visualization and monitoring platform",
+  "private": true,
+  "workspaces": [
+    "packages/shared-types",
+    "packages/sdk",
+    "apps/frontend",
+    "apps/backend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces",
+    "build": "npm run build --workspaces",
+    "type-check": "npm run type-check --workspaces",
+    "lint": "npm run lint --workspaces",
+    "frontend:dev": "npm run dev --workspace=apps/frontend",
+    "frontend:build": "npm run build --workspace=apps/frontend",
+    "backend:dev": "cd apps/backend && uvicorn app.main:app --reload",
+    "backend:run": "cd apps/backend && uvicorn app.main:app",
+    "sdk:build": "npm run build --workspace=packages/sdk",
+    "shared-types:build": "npm run build --workspace=packages/shared-types"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

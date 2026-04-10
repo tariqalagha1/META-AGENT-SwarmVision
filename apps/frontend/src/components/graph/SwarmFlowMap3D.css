@@ -1,0 +1,113 @@
+/* SwarmFlowMap3D.css */
+
+.swarm-flow-map-3d {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #0f172a;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.view-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.8);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.btn:hover {
+  border-color: rgba(97, 218, 251, 0.5);
+  background: rgba(97, 218, 251, 0.1);
+  color: #61dafb;
+}
+
+.btn-secondary {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Force graph container */
+.swarm-flow-map-3d > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Override force graph styles */
+.swarm-flow-map-3d canvas {
+  border-radius: 8px;
+}
+
+/* Node glow animations */
+@keyframes node-glow {
+  0% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+    scale: 1.2;
+  }
+  100% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    opacity: 0.1;
+    scale: 1;
+  }
+  50% {
+    opacity: 0.3;
+    scale: 1.3;
+  }
+  100% {
+    opacity: 0.1;
+    scale: 1;
+  }
+}
+
+/* Link animations */
+@keyframes link-flow {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+/* Performance optimizations */
+.swarm-flow-map-3d * {
+  will-change: transform;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .view-controls {
+    top: 8px;
+    right: 8px;
+  }
+
+  .btn {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+}

@@ -1,0 +1,78 @@
+/* ViewToggle.css */
+
+.view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.toggle-container {
+  display: flex;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-btn {
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.toggle-btn:hover {
+  background: rgba(97, 218, 251, 0.1);
+  color: var(--text-primary);
+}
+
+.toggle-btn.active {
+  background: var(--primary);
+  color: white;
+  font-weight: 600;
+}
+
+.toggle-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 1px;
+}
+
+.toggle-btn:first-child {
+  border-right: 1px solid var(--border);
+}
+
+.toggle-btn:first-child.active ~ .toggle-btn {
+  border-left: 1px solid var(--primary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .toggle-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .view-toggle {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .toggle-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}

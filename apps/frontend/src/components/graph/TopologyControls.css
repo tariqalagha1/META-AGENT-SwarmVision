@@ -1,0 +1,152 @@
+/* TopologyControls.css */
+
+.topology-controls {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.controls-row {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.control-group.checkbox-group {
+  min-width: auto;
+  flex-direction: row;
+  align-items: center;
+}
+
+.control-group label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.search-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.2);
+}
+
+.filter-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.2);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.export-buttons {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.btn-export {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-export:hover {
+  border-color: var(--primary);
+  background: rgba(97, 218, 251, 0.1);
+  color: var(--primary);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .controls-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .control-group {
+    min-width: auto;
+  }
+
+  .export-buttons {
+    margin-left: 0;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .topology-controls {
+    padding: 12px;
+  }
+
+  .controls-row {
+    gap: 8px;
+  }
+
+  .control-group {
+    min-width: auto;
+  }
+
+  .export-buttons {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .btn-export {
+    width: 100%;
+  }
+}

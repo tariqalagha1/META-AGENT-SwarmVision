@@ -1,0 +1,17 @@
+{
+  "name": "@swarmvision/shared-types",
+  "version": "0.1.0",
+  "description": "Shared type definitions for SwarmVision Graph",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "tsc --noEmit",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  }
+}

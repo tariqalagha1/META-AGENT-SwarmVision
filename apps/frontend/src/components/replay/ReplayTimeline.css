@@ -1,0 +1,70 @@
+.replay-timeline {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1rem 1.2rem;
+}
+
+.replay-timeline-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.replay-timeline-header h3 {
+  margin: 0 0 0.25rem 0;
+}
+
+.replay-timeline-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.replay-timestamp {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  gap: 0.25rem;
+}
+
+.replay-timestamp span {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.replay-controls {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1rem;
+  align-items: center;
+}
+
+.replay-slider {
+  width: 100%;
+}
+
+.replay-error {
+  margin-bottom: 1rem;
+  color: #fca5a5;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 900px) {
+  .replay-timeline-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .replay-timestamp {
+    text-align: left;
+  }
+
+  .replay-controls {
+    grid-template-columns: 1fr;
+  }
+}
