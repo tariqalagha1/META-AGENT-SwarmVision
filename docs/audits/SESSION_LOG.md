@@ -118,6 +118,26 @@ Mission understood. Beginning Phase 1, P0-3 first per protocol.
 
 ---
 
+## Phase 2 — META-02 Build
+
+## [08:42] START: META-02 — MetaInsightsPanel
+- Estimated effort: medium (4 new files + CSS + App.tsx wire)
+- Files expected to change: design/metaCategoryTokens.ts, MetaCategoryBadge.tsx, MetaInsightsPanel.tsx, MetaInsightsPanel.test.tsx, ObservabilityPanels.css, App.tsx
+
+## [08:44] COMPLETE: META-02
+- metaCategoryTokens.ts: 5 categories (bottleneck, repeated_failure, decision_pattern, anomaly_correlation, load_risk) + fallback token
+- MetaCategoryBadge.tsx: colored dot + label, uses getMetaCategoryToken fallback
+- MetaInsightsPanel.tsx: collapsible bottom drawer, useMetaInsightEvents() data source, severity badge, affected agents, timestamp
+- ObservabilityPanels.css: drawer/card/badge CSS using --ov-* custom properties
+- App.tsx: MetaInsightsPanel wired below <main> closing tag, above EventDetailsDrawer, 2x2 grid unchanged
+- MetaInsightsPanel.test.tsx: 5/5 tests pass (empty state, populated, collapse/expand, unknown category, missing optional fields)
+- npm run type-check: PASS
+- Committed: 92b12ee
+
+## [08:45] CHECKPOINT 2 — writing checkpoint file + STOPPING
+
+---
+
 ## Pre-Phase-2 test diagnostic
 
 **Date**: 2026-04-23 (post-Checkpoint 1, pre-Phase 2)
