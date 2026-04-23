@@ -1,0 +1,45 @@
+version: '3.9'
+
+services:
+  swarmvision-backend:
+    build: ./apps/backend
+    environment:
+      - META_AGENT_ENABLED=true
+      - META_AGENT_URL=http://meta-agent:9001
+      - META_AGENT_TIMEOUT_MS=1000
+      - META_DISPATCH_SEMAPHORE_SIZE=16
+      - META_SHARED_SECRET=${META_SHARED_SECRET}
+      - NEO4J_URI=${NEO4J_URI:-bolt://neo4j:7687}
+      - NEO4J_USERNAME=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+    depends_on:
+      - neo4j
+      - meta-agent
+
+  meta-agent:
+    build: ./services/meta-agent
+    expose:
+      - '9001'
+    environment:
+      - META_MODE=passive
+      - META_DEBUG=false
+      - META_REQUIRE_AUTH_IN_PROD=true
+      - META_SHARED_SECRET=${META_SHARED_SECRET}
+      - NEO4J_URI=${NEO4J_URI:-bolt://neo4j:7687}
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9001/health']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      - neo4j
+
+  neo4j:
+    image: neo4j:5.26
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD}
+    expose:
+      - '7474'
+      - '7687'

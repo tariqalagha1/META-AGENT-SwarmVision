@@ -74,16 +74,22 @@ Connect to the WebSocket server at `ws://localhost:8000/ws/events`
 
 ## Environment Configuration
 
-Create `.env` files based on `.env.example`:
+Before running with `docker-compose`, copy `.env.example` to `.env` and fill in all required values:
 
-### Backend `.env`
+```bash
+cp .env.example .env
+# Edit .env — set NEO4J_PASSWORD and META_SHARED_SECRET (no defaults; must be set)
 ```
-API_HOST=0.0.0.0
-API_PORT=8000
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=password
-```
+
+**Required variables** (no defaults — docker-compose will fail if unset):
+- `NEO4J_PASSWORD` — Neo4j database password
+- `META_SHARED_SECRET` — shared secret for meta-agent authentication
+
+**Optional variables** (have defaults in docker-compose):
+- `NEO4J_USER` — defaults to `neo4j`
+- `NEO4J_URI` — defaults to `bolt://neo4j:7687`
+
+Never commit `.env` to version control. `.env.example` documents the required keys without values.
 
 ## Event Types
 
