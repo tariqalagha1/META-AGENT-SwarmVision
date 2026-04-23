@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { WebSocketEvent } from '../hooks/useWebSocket'
+import type { WebSocketEvent } from '../types/observability'
 
 export type ConnectionState = 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING'
 export type StreamMode = 'LIVE' | 'PAUSED'

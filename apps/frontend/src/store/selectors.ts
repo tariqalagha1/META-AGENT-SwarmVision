@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { WebSocketEvent } from '../hooks/useWebSocket'
+import type { WebSocketEvent } from '../types/observability'
 import type { ObservabilityEvent } from './useObservabilityStore'
 import { useObservabilityStore } from './useObservabilityStore'
 

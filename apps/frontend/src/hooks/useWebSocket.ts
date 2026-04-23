@@ -5,26 +5,16 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import type { WebSocketEvent } from '../types/observability'
 
-export interface WebSocketEvent {
-  id: string
-  type: string
-  timestamp: string
-  source: string
-  payload: Record<string, unknown>
-  context?: {
-    tenant_id?: string
-    app_id?: string
-    app_name?: string
-    environment?: string
-    version?: string
-  }
-}
+export type { WebSocketEvent }
 
 export interface UseWebSocketOptions {
   url: string
   reconnectAttempts?: number
   reconnectDelay?: number
+  heartbeatIntervalMs?: number
+  reconnectBackoffMultiplier?: number
   autoConnect?: boolean
   onEvent?: (event: WebSocketEvent) => void
 }
@@ -45,6 +35,8 @@ export function useWebSocket(options: UseWebSocketOptions) {
     url,
     reconnectAttempts = 5,
     reconnectDelay = 3000,
+    heartbeatIntervalMs = 30000,
+    reconnectBackoffMultiplier = 1.5,
     autoConnect = true,
     onEvent,
   } = options
@@ -89,7 +81,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
           if (ws.current?.readyState === WebSocket.OPEN) {
             ws.current.send(JSON.stringify({ type: 'ping' }))
           }
-        }, 30000)
+        }, heartbeatIntervalMs)
       }
 
       ws.current.onmessage = (event) => {
@@ -136,7 +128,9 @@ export function useWebSocket(options: UseWebSocketOptions) {
         // Attempt to reconnect
         if (reconnectAttemptsRef.current < reconnectAttempts) {
           reconnectAttemptsRef.current++
-          const delay = reconnectDelay * Math.pow(1.5, reconnectAttemptsRef.current - 1)
+          const delay =
+            reconnectDelay *
+            Math.pow(reconnectBackoffMultiplier, reconnectAttemptsRef.current - 1)
           
           console.log(
             `Attempting to reconnect... (${reconnectAttemptsRef.current}/${reconnectAttempts}) in ${Math.round(delay)}ms`
@@ -164,7 +158,14 @@ export function useWebSocket(options: UseWebSocketOptions) {
         error: 'Failed to create WebSocket connection',
       }))
     }
-  }, [url, reconnectAttempts, reconnectDelay, onEvent])
+  }, [
+    url,
+    reconnectAttempts,
+    reconnectDelay,
+    heartbeatIntervalMs,
+    reconnectBackoffMultiplier,
+    onEvent,
+  ])
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {

@@ -1,3 +1,32 @@
+export interface WebSocketEvent {
+  event_id?: string
+  id: string
+  event_type?: string
+  type: string
+  timestamp: string
+  source: string
+  agent_id?: string | null
+  trace_id?: string | null
+  session_id?: string | null
+  step_id?: string | null
+  parent_step?: string | null
+  parent_event_id?: string | null
+  step_index?: number
+  latency_ms?: number
+  input_ref?: string | null
+  output_ref?: string | null
+  confidence_score?: number | null
+  decision_flag?: string | null
+  payload: Record<string, unknown>
+  context?: {
+    tenant_id?: string
+    app_id?: string
+    app_name?: string
+    environment?: string
+    version?: string
+  }
+}
+
 export interface SystemGraphPayload {
   nodes: Array<{
     id: string
