@@ -115,3 +115,98 @@ Mission understood. Beginning Phase 1, P0-3 first per protocol.
 - Committed: daed621
 
 ## [08:41] CHECKPOINT 1 — writing checkpoint file + STOPPING
+
+---
+
+## Pre-Phase-2 test diagnostic
+
+**Date**: 2026-04-23 (post-Checkpoint 1, pre-Phase 2)
+**Purpose**: Determine whether the 4 failing frontend tests (phase5–8) were pre-existing before this session or caused by a session commit.
+
+---
+
+### 1. Test name and failing assertion
+
+| Test file | Test name | First failing assertion |
+|---|---|---|
+| `App.phase5.test.tsx` | "keeps shared live state across 2D and 3D while inspector remains functional" | `Unable to find an element with the text: 2D Control View` |
+| `App.phase6.test.tsx` | "switches from live mode into replay mode and scrubs historical topology" | `Unable to find an element with the text: Live Mode` |
+| `App.phase7.test.tsx` | "renders replay analytics, heatmap severity, and root cause diagnosis for failures" | `Unable to find an element with the text: Replay Mode` |
+| `App.phase8.test.tsx` | "shows tenant and app context while analytics requests stay scoped" | `Unable to find an element by: [data-testid="app-scope-bar"]` |
+
+All 4 failures are `TestingLibraryElementError` — the DOM element the test expects simply does not exist in the rendered output. None are TypeScript errors, assertion mismatches on values, or hook failures.
+
+---
+
+### 2. Files under test (top 3 src/ imports per test)
+
+All 4 tests have identical imports — only 2 src/ files:
+
+| Test | Import 1 | Import 2 |
+|---|---|---|
+| phase5 | `./App` | `./hooks/useWebSocket` (type-only: `UseWebSocketOptions`, `WebSocketEvent`) |
+| phase6 | `./App` | `./hooks/useWebSocket` (type-only: `UseWebSocketOptions`, `WebSocketEvent`) |
+| phase7 | `./App` | `./hooks/useWebSocket` (type-only: `UseWebSocketOptions`) |
+| phase8 | `./App` | `./hooks/useWebSocket` (type-only: `UseWebSocketOptions`, `WebSocketEvent`) |
+
+No other src/ files are directly imported. The tests mock `useWebSocket` entirely (`vi.mock('./hooks/useWebSocket', ...)`), so transitive imports of App.tsx's component tree are not exercised.
+
+---
+
+### 3. Last-modified commit per imported file
+
+```
+git log -1 --format='%H %s' -- apps/frontend/src/App.tsx
+→ 971b40b Initial commit: SwarmVision OS Layer - Real-time AI agent visualization and monitoring platform
+
+git log -1 --format='%H %s' -- apps/frontend/src/hooks/useWebSocket.ts
+→ daed621 fix(hygiene): P2 batch — palette, EventType enum, CSS tokens, WebSocketEvent decoupling
+```
+
+**App.tsx note**: `git log` shows only `971b40b` because App.tsx has never been committed since the initial commit — but `git status` shows it as **modified (unstaged)**. The working-copy App.tsx (204 lines, new observability architecture) differs from the committed version (429 lines, old Phase 5/6/7/8 architecture). The tests run against the working copy. This working-copy rewrite predates all session commits — it was already present when the session started (confirmed: the stash test run in the prior session context showed 4 passing tests only because stash temporarily restored the committed old `App.tsx`, not because the working copy was clean).
+
+---
+
+### 4. Session-commit overlap check
+
+| Imported file | Last commit | Matches session commit? |
+|---|---|---|
+| `apps/frontend/src/App.tsx` | `971b40b` (initial commit) | NO — pre-session |
+| `apps/frontend/src/hooks/useWebSocket.ts` | `daed621` (P2 batch) | **YES — session commit daed621** |
+
+`useWebSocket.ts` was touched by `daed621`. However:
+
+- The import in all 4 tests is **type-only** (`import type { UseWebSocketOptions, WebSocketEvent }`).
+- The entire hook is **fully mocked** via `vi.mock('./hooks/useWebSocket', ...)` — the runtime module is replaced; the type import has zero runtime effect.
+- The P2 change to `useWebSocket.ts` was: remove the inline `WebSocketEvent` interface, replace with `import type { WebSocketEvent } from '../types/observability'` + `export type { WebSocketEvent }`. This is a type-level re-export only; it does not change the runtime shape of the module.
+- The failure message (`Unable to find an element with the text: 2D Control View`) is a DOM query failure in the rendered `App` component — entirely unrelated to the `WebSocketEvent` type definition.
+- **Causal test**: The same failure would occur with the `useWebSocket.ts` from `971b40b` (initial commit), because the root cause is `App.tsx` working copy missing "2D Control View" UI, which was already missing before this session.
+
+---
+
+### 5. Verdict per test
+
+| Test file | Verdict | Reasoning |
+|---|---|---|
+| `App.phase5.test.tsx` | **PRE-EXISTING** | Failure = missing "2D Control View" in App.tsx working copy. App.tsx working-copy rewrite predates session. useWebSocket.ts touched by daed621 but import is type-only, module is mocked — zero runtime impact. |
+| `App.phase6.test.tsx` | **PRE-EXISTING** | Failure = missing "Live Mode" in App.tsx working copy. Same root cause. |
+| `App.phase7.test.tsx` | **PRE-EXISTING** | Failure = missing "Replay Mode" in App.tsx working copy. Same root cause. |
+| `App.phase8.test.tsx` | **PRE-EXISTING** | Failure = missing `[data-testid="app-scope-bar"]` in App.tsx working copy. Same root cause. |
+
+**Root cause** (shared by all 4): `App.tsx` was rewritten to the new observability architecture in a prior session, but was never committed and the phase5–8 tests were not updated/removed. The tests look for Phase 5/6/7/8 UI elements ("2D Control View", "Live Mode", "Replay Mode", `app-scope-bar`) that exist in the committed 429-line App but not in the 204-line observability working copy.
+
+The `daed621` touch of `useWebSocket.ts` is structurally irrelevant: type-only import + full vi.mock() = no runtime dependency on the module's export shape.
+
+---
+
+### 6. Summary
+
+| Category | Count |
+|---|---|
+| PRE-EXISTING | **4** |
+| SESSION-TOUCHED | **0** |
+| UNCLEAR | **0** |
+
+**SESSION-TOUCHED detail**: `useWebSocket.ts` appears in the import list of 3 of the 4 tests and was last touched by session commit `daed621`. However, after causal analysis, the touch is confirmed non-causal: the import is type-only, the module is fully mocked at runtime, and the failure message is a DOM element query failure with no connection to the changed code. Reclassified as PRE-EXISTING.
+
+**Recommended action (for a future session)**: Either (a) update the 4 phase tests to match the new observability App architecture, or (b) delete them if the old Phase 5/6/7/8 UI is permanently superseded. Also commit the working-copy `App.tsx` so git state reflects reality.
