@@ -11,7 +11,7 @@ import { DecisionPanel } from './components/observability/DecisionPanel'
 import { EventDetailsDrawer } from './components/observability/EventDetailsDrawer'
 import { MetaInsightsPanel } from './components/observability/MetaInsightsPanel'
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8000/ws/events'
+const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8012/ws/events'
 
 const getChannelUrl = (base: string, channel: 'events' | 'metrics' | 'alerts' | 'agents') => {
   if (base.endsWith('/ws/events')) {

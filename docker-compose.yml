@@ -3,6 +3,8 @@ version: '3.9'
 services:
   swarmvision-backend:
     build: ./apps/backend
+    ports:
+      - "8012:8012"
     environment:
       - META_AGENT_ENABLED=true
       - META_AGENT_URL=http://meta-agent:9001
