@@ -1,47 +1,43 @@
-import { useState } from 'react'
-import { useMetaInsightEvents } from '../../store'
+import { useMemo, useState } from 'react'
+import { FixedSizeList, type ListChildComponentProps } from 'react-window'
+import { useMetaInsightEvents, useObservabilityStore, usePausedSnapshot } from '../../store'
 import type { ObservabilityEvent } from '../../store'
-import { formatTimestamp } from '../../utils/formatTimestamp'
-import { MetaCategoryBadge } from './MetaCategoryBadge'
-import { SeverityBadge } from './SeverityBadge'
-import type { SeverityLevel } from '../../design/severityTokens'
+import { MetaInsightRow } from './MetaInsightRow'
 import './ObservabilityPanels.css'
 
-const SEVERITY_LEVELS = new Set<string>(['LOW', 'MEDIUM', 'HIGH'])
+const INSIGHT_CAP = 200
+const INSIGHT_ROW_HEIGHT = 72
+const VIRTUALIZATION_THRESHOLD = 150
 
-const isSeverityLevel = (value: unknown): value is SeverityLevel =>
-  typeof value === 'string' && SEVERITY_LEVELS.has(value)
+type VirtualRowData = { insights: ObservabilityEvent[] }
 
-function InsightCard({ event }: { event: ObservabilityEvent }) {
-  const payload = event.payload ?? {}
-  const category = String(payload.category ?? '')
-  const summary = String(payload.summary ?? '')
-  const affectedAgents = Array.isArray(payload.affected_agents)
-    ? (payload.affected_agents as string[])
-    : undefined
-  const severity = isSeverityLevel(payload.severity) ? payload.severity : undefined
-
+function VirtualizedInsightRow({ index, style, data }: ListChildComponentProps<VirtualRowData>) {
+  const insight = data.insights[index]
+  if (!insight) return null
   return (
-    <div className="meta-insight-card">
-      <div className="meta-insight-card-header">
-        <MetaCategoryBadge category={category} />
-        {severity ? <SeverityBadge severity={severity} /> : null}
-        <span className="meta-insight-timestamp">{formatTimestamp(event.timestamp, 'absolute')}</span>
-      </div>
-      <p className="meta-insight-summary">{summary}</p>
-      {affectedAgents && affectedAgents.length > 0 ? (
-        <p className="meta-insight-agents">
-          <span className="meta-insight-agents-label">Agents: </span>
-          {affectedAgents.join(', ')}
-        </p>
-      ) : null}
+    <div style={style}>
+      <MetaInsightRow insight={insight} />
     </div>
   )
 }
 
 export function MetaInsightsPanel() {
   const [expanded, setExpanded] = useState(false)
-  const insights = useMetaInsightEvents()
+  const streamMode = useObservabilityStore((s) => s.mode)
+
+  const rawInsights = useMetaInsightEvents()
+  const insights = usePausedSnapshot(rawInsights, streamMode === 'PAUSED')
+
+  const capped = useMemo(
+    () =>
+      insights
+        .slice()
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, INSIGHT_CAP),
+    [insights]
+  )
+
+  const rowData = useMemo<VirtualRowData>(() => ({ insights: capped }), [capped])
 
   return (
     <section className="meta-insights-drawer" aria-label="Meta insights panel">
@@ -54,20 +50,31 @@ export function MetaInsightsPanel() {
         >
           Meta Insights
         </button>
-        <span className="meta-insights-count-pill">{insights.length}</span>
+        <span className="meta-insights-count-pill">{capped.length}</span>
       </header>
 
       {expanded ? (
         <div className="meta-insights-body">
-          {insights.length === 0 ? (
+          {capped.length === 0 ? (
             <p className="meta-insights-empty">
               No meta insights yet — analysis begins when events start streaming.
             </p>
+          ) : capped.length > VIRTUALIZATION_THRESHOLD ? (
+            <FixedSizeList
+              height={Math.min(320, capped.length * INSIGHT_ROW_HEIGHT)}
+              width="100%"
+              itemCount={capped.length}
+              itemData={rowData}
+              itemSize={INSIGHT_ROW_HEIGHT}
+            >
+              {VirtualizedInsightRow}
+            </FixedSizeList>
           ) : (
             <div className="meta-insights-list">
-              {insights.map((event) => (
-                <InsightCard key={event.event_id} event={event} />
-              ))}
+              {capped.map((insight) => {
+                const key = insight.event_id ?? insight.id
+                return <MetaInsightRow key={key} insight={insight} />
+              })}
             </div>
           )}
         </div>
