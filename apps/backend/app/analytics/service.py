@@ -7,7 +7,10 @@ from datetime import datetime, timedelta
 from statistics import mean
 from typing import Any
 
+from app.core.settings import get_settings
 from app.neo4j.replay import build_topology_snapshot
+
+settings = get_settings()
 
 
 def build_summary_response(
@@ -58,7 +61,8 @@ def build_failures_response(
             1
             for failure in failure_events
             if failure["id"] != event["id"]
-            and _to_datetime(failure["timestamp"]) >= timestamp - timedelta(minutes=15)
+            and _to_datetime(failure["timestamp"])
+            >= timestamp - timedelta(minutes=settings.analytics_failure_lookback_minutes)
             and _to_datetime(failure["timestamp"]) <= timestamp
             and (
                 failure.get("payload", {}).get("agent_id") == payload.get("agent_id")
@@ -71,14 +75,20 @@ def build_failures_response(
         recent_latencies = [
             item["latency_ms"]
             for item in handoff_latencies
-            if timestamp - timedelta(minutes=10) <= item["timestamp"] <= timestamp
+            if timestamp - timedelta(minutes=settings.analytics_latency_window_minutes)
+            <= item["timestamp"]
+            <= timestamp
         ]
         recent_average = mean(recent_latencies) if recent_latencies else 0
         latency_spike = bool(
             recent_latencies
             and (
-                recent_average >= 300000
-                or (latency_baseline and recent_average > latency_baseline * 1.25)
+                recent_average >= settings.analytics_latency_spike_absolute_ms
+                or (
+                    latency_baseline
+                    and recent_average
+                    > latency_baseline * settings.analytics_latency_spike_ratio
+                )
             )
         )
 
@@ -182,19 +192,26 @@ def build_bottlenecks_response(
         stuck_task_ids = [
             task_id
             for task_id, started_at in metrics["open_tasks"].items()
-            if to_timestamp - started_at > timedelta(minutes=5)
+            if to_timestamp - started_at > timedelta(minutes=settings.analytics_stuck_task_minutes)
         ]
         blocker_count = metrics["handoff_blockers"]
 
         categories: list[str] = []
-        if avg_completion and global_completion_avg and avg_completion > global_completion_avg * 1.5:
+        if (
+            avg_completion
+            and global_completion_avg
+            and avg_completion
+            > global_completion_avg * settings.analytics_slow_completion_ratio
+        ):
             categories.append("slow_nodes")
-        if failure_rate >= 0.35 and metrics["failures"] >= 1:
+        if failure_rate >= settings.analytics_failure_rate_threshold and metrics["failures"] >= 1:
             categories.append("high_failure_nodes")
         if stuck_task_ids:
             categories.append("stuck_nodes")
-        if blocker_count >= 1 or avg_handoff >= 300000 or (
-            avg_handoff and global_handoff_avg and avg_handoff > global_handoff_avg * 1.5
+        if blocker_count >= 1 or avg_handoff >= settings.analytics_latency_spike_absolute_ms or (
+            avg_handoff
+            and global_handoff_avg
+            and avg_handoff > global_handoff_avg * settings.analytics_handoff_latency_ratio
         ):
             categories.append("frequent_handoff_blockers")
 
@@ -231,7 +248,10 @@ def build_bottlenecks_response(
                     "upstream_chain": _latest_upstream_chain(events, agent_id, to_timestamp),
                     "recent_failure_count": failure_index.get(agent_id, 0),
                     "latency_spike_correlation": bool(
-                        avg_handoff and global_handoff_avg and avg_handoff > global_handoff_avg * 1.25
+                        avg_handoff
+                        and global_handoff_avg
+                        and avg_handoff
+                        > global_handoff_avg * settings.analytics_root_cause_latency_ratio
                     ),
                 }
             )

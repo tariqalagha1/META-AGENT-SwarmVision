@@ -26,9 +26,14 @@ class ReplayEdge(BaseModel):
 
 class ReplayEvent(BaseModel):
     id: str
+    event_id: Optional[str] = None
     type: str
+    event_type: Optional[str] = None
     timestamp: datetime
     source: str
+    trace_id: Optional[str] = None
+    parent_event_id: Optional[str] = None
+    step_index: Optional[int] = None
     payload: dict[str, Any] = Field(default_factory=dict)
     context: dict[str, Any] = Field(default_factory=dict)
 

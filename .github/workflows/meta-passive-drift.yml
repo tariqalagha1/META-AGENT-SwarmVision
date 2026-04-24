@@ -1,0 +1,40 @@
+name: meta-passive-drift
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  passive-drift-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Meta write routes stay restricted
+        run: |
+          set -euo pipefail
+          cd services/meta-agent/app
+          POST_COUNT=$(grep -R "@router.post(" -n api/routes.py | wc -l | tr -d ' ')
+          if [ "$POST_COUNT" -ne 1 ]; then
+            echo "Expected exactly one POST route in meta sidecar"
+            exit 1
+          fi
+          grep -R "@router.post('/analyze')" -n api/routes.py >/dev/null
+          ! grep -R "@router.put(" -n .
+          ! grep -R "@router.delete(" -n .
+
+      - name: Verify no outbound to main backend exists in Meta
+        run: |
+          set -euo pipefail
+          cd services/meta-agent/app
+          ! grep -R "swarmvision-backend" -n .
+          ! grep -R "localhost:8000" -n .
+          ! grep -R "/events/broadcast" -n .
+
+      - name: Verify forbidden client file absent
+        run: |
+          set -euo pipefail
+          test ! -f services/meta-agent/app/clients/main_backend_client.py

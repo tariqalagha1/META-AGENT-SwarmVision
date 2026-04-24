@@ -9,6 +9,8 @@ import logging
 import json
 from datetime import datetime
 
+from app.observability import normalize_error
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,62 +18,81 @@ class WebSocketManager:
     """Manages WebSocket connections and event broadcasting"""
 
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.active_connections: dict[str, list[WebSocket]] = {
+            "events": [],
+            "metrics": [],
+            "alerts": [],
+            "agents": [],
+        }
         self.connection_metadata = {}  # Track connection info
         self.total_events_broadcast = 0
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, channel: str = "events"):
         """Accept a new WebSocket connection"""
+        normalized_channel = channel if channel in self.active_connections else "events"
         await websocket.accept()
-        self.active_connections.append(websocket)
+        self.active_connections[normalized_channel].append(websocket)
         
         # Store metadata
         conn_id = id(websocket)
         self.connection_metadata[conn_id] = {
             "connected_at": datetime.utcnow().isoformat(),
-            "events_received": 0
+            "events_received": 0,
+            "channel": normalized_channel,
         }
         
-        logger.info(f"Client connected. Total connections: {len(self.active_connections)}")
+        logger.info(
+            "Client connected. channel=%s total_connections=%s",
+            normalized_channel,
+            self.get_client_count(),
+        )
         
         # Send welcome message
         welcome = {
             "type": "CONNECTION_ESTABLISHED",
             "timestamp": datetime.utcnow().isoformat(),
-            "message": "Connected to SwarmVision Graph event stream"
+            "message": "Connected to SwarmVision Graph event stream",
+            "channel": normalized_channel,
         }
         try:
             await websocket.send_text(json.dumps(welcome))
-        except Exception as e:
-            logger.error(f"Failed to send welcome message: {e}")
+        except Exception as exc:
+            logger.error("welcome_message_error=%s", normalize_error(exc))
 
     async def disconnect(self, websocket: WebSocket):
         """Remove a disconnected client"""
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-            conn_id = id(websocket)
-            if conn_id in self.connection_metadata:
-                del self.connection_metadata[conn_id]
-            logger.info(f"Client disconnected. Total connections: {len(self.active_connections)}")
+        for _channel, connections in self.active_connections.items():
+            if websocket in connections:
+                connections.remove(websocket)
+                break
+        conn_id = id(websocket)
+        if conn_id in self.connection_metadata:
+            del self.connection_metadata[conn_id]
+        logger.info("Client disconnected. Total connections: %s", self.get_client_count())
 
-    async def broadcast(self, message: dict):
-        """Broadcast a message to all connected clients"""
-        if not self.active_connections:
-            logger.debug("No active connections to broadcast to")
+    async def broadcast(self, message: dict, channel: str = "events"):
+        """Broadcast a message to all connected clients for a channel."""
+        normalized_channel = channel if channel in self.active_connections else "events"
+        targets = self.active_connections[normalized_channel]
+        if not targets:
+            logger.debug("No active %s connections to broadcast to", normalized_channel)
             return
 
         message_str = json.dumps(message)
         disconnected = []
 
-        for connection in self.active_connections:
+        for connection in targets:
             try:
                 await connection.send_text(message_str)
                 # Track metadata
                 conn_id = id(connection)
                 if conn_id in self.connection_metadata:
                     self.connection_metadata[conn_id]["events_received"] += 1
-            except Exception as e:
-                logger.debug(f"Failed to send message (client may have disconnected): {e}")
+            except Exception as exc:
+                logger.debug(
+                    "broadcast_delivery_error=%s",
+                    normalize_error(exc),
+                )
                 disconnected.append(connection)
 
         # Clean up disconnected clients
@@ -87,18 +108,22 @@ class WebSocketManager:
             conn_id = id(websocket)
             if conn_id in self.connection_metadata:
                 self.connection_metadata[conn_id]["events_received"] += 1
-        except Exception as e:
-            logger.error(f"Failed to send personal message: {e}")
+        except Exception as exc:
+            logger.error("personal_message_error=%s", normalize_error(exc))
             await self.disconnect(websocket)
 
     def get_client_count(self) -> int:
         """Get the number of active connections"""
-        return len(self.active_connections)
+        return sum(len(connections) for connections in self.active_connections.values())
 
     def get_stats(self) -> dict:
         """Get WebSocket manager statistics"""
         return {
-            "active_connections": len(self.active_connections),
+            "active_connections": self.get_client_count(),
+            "channels": {
+                channel: len(connections)
+                for channel, connections in self.active_connections.items()
+            },
             "total_events_broadcast": self.total_events_broadcast,
             "connections": [
                 {

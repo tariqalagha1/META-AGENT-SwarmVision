@@ -11,7 +11,11 @@ from uuid import uuid4
 from typing import Callable
 import random
 
+from app.core.settings import get_settings
+from app.observability import normalize_error
+
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 class SwarmEvent:
@@ -132,7 +136,7 @@ class EventPulseEmitter:
         """
         self.broadcast_callback = broadcast_callback
         self.is_running = False
-        self.pulse_interval = 2  # seconds between events
+        self.pulse_interval = settings.pulse_interval_seconds
         self.pulse_task = None
 
     async def start(self):
@@ -183,19 +187,19 @@ class EventPulseEmitter:
                     event = SwarmEvent.get_random_event()
                     await self.broadcast_callback(event)
                     logger.debug(f"Emitted event: {event['type']}")
-                except Exception as e:
-                    logger.error(f"Error emitting event: {e}")
+                except Exception as exc:
+                    logger.error("event_emit_error=%s", normalize_error(exc))
 
                 # Wait before emitting next event
                 await asyncio.sleep(self.pulse_interval)
 
         except asyncio.CancelledError:
             logger.info("Pulse loop cancelled")
-        except Exception as e:
-            logger.error(f"Fatal error in pulse loop: {e}")
+        except Exception as exc:
+            logger.error("pulse_loop_fatal=%s", normalize_error(exc))
             self.is_running = False
 
     def set_interval(self, interval: float):
         """Set the interval between events (in seconds)"""
-        self.pulse_interval = max(0.1, interval)  # Minimum 100ms
+        self.pulse_interval = max(settings.pulse_min_interval_seconds, interval)
         logger.info(f"Pulse interval set to {self.pulse_interval}s")

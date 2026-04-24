@@ -1,8 +1,29 @@
 import { useSyncExternalStore } from 'react'
 import type { WebSocketEvent } from '../types/observability'
+import type { NormalizedEvent } from '../lib/normalizeEvent'
 
 export type ConnectionState = 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING'
 export type StreamMode = 'LIVE' | 'PAUSED'
+export type GraphMode = 'OBSERVABILITY' | 'PIPELINE' | 'CINEMATIC'
+export type GraphFilters = {
+  query?: string
+  eventTypes?: string[]
+  agentIds?: string[]
+  traceIds?: string[]
+  severity?: Array<'LOW' | 'MEDIUM' | 'HIGH'>
+  timeRange?: { from?: number; to?: number }
+}
+
+export type ReplayState = {
+  enabled: boolean
+  cursorTs?: number
+  speed: 0.5 | 1 | 2 | 4
+  isPlaying: boolean
+}
+
+export type ExportOptions = {
+  format: 'PNG' | 'JSON'
+}
 
 export type MetricsSnapshot = {
   timestamp?: string
@@ -35,6 +56,8 @@ export type ObservabilityEvent = WebSocketEvent & {
   step_index: number
 }
 
+type IngressEvent = WebSocketEvent | NormalizedEvent
+
 const MAX_EVENTS = 5000
 const MAX_ALERTS = 100
 const MAX_TRACES = 500
@@ -60,11 +83,15 @@ type ObservabilityState = {
   connection: ConnectionState
   lastMessageTimestamp: number
   safeMode: boolean
+  graphMode: GraphMode
+  filters: GraphFilters
+  replay: ReplayState
+  exportOptions: ExportOptions
 }
 
 type ObservabilityActions = {
-  addEvent: (event: WebSocketEvent) => void
-  addBatchEvents: (events: WebSocketEvent[]) => void
+  addEvent: (event: IngressEvent) => void
+  addBatchEvents: (events: IngressEvent[]) => void
   setMetrics: (metrics: MetricsSnapshot) => void
   setAlerts: (alerts: Alert[] | ((prev: Alert[]) => Alert[])) => void
   setAgents: (agents: AgentState[]) => void
@@ -78,6 +105,12 @@ type ObservabilityActions = {
   checkHeartbeat: (staleMs?: number) => void
   cleanupStaleEvents: (now?: number) => void
   setSafeMode: (enabled: boolean) => void
+  setGraphMode: (mode: GraphMode) => void
+  setFilters: (partial: Partial<GraphFilters>) => void
+  clearFilters: () => void
+  setReplay: (partial: Partial<ReplayState>) => void
+  resetReplay: () => void
+  setExportOptions: (opts: ExportOptions) => void
 }
 
 export type ObservabilityStore = ObservabilityState & ObservabilityActions
@@ -85,20 +118,46 @@ export type ObservabilityStore = ObservabilityState & ObservabilityActions
 type Updater = (state: ObservabilityStore) => ObservabilityStore
 type Selector<T> = (state: ObservabilityStore) => T
 
-const normalizeEvent = (input: WebSocketEvent): ObservabilityEvent | null => {
+const normalizeEvent = (input: IngressEvent): ObservabilityEvent | null => {
+  const timestampRaw = (input as { timestamp?: string | number }).timestamp
+  const normalizedTimestamp =
+    typeof timestampRaw === 'number'
+      ? new Date(timestampRaw).toISOString()
+      : String(timestampRaw ?? '')
   const eventId = String(input.event_id ?? input.id ?? '')
-  const eventType = String(input.event_type ?? input.type ?? '')
-  const timestamp = String(input.timestamp ?? '')
+  const eventType = String((input as { event_type?: string }).event_type ?? (input as { type?: string }).type ?? '')
+  const timestamp = normalizedTimestamp
   if (!eventId || !eventType || !timestamp) return null
+
+  const context = {
+    ...((input as { context?: WebSocketEvent['context'] }).context ?? {}),
+  }
+  const topLevelTenantId = (input as { tenant_id?: string }).tenant_id
+  const topLevelAppId = (input as { app_id?: string }).app_id
+  if (topLevelTenantId && !context.tenant_id) {
+    context.tenant_id = topLevelTenantId
+  }
+  if (topLevelAppId && !context.app_id) {
+    context.app_id = topLevelAppId
+  }
+
+  const payload =
+    input.payload && typeof input.payload === 'object' && !Array.isArray(input.payload)
+      ? input.payload
+      : {}
 
   return {
     ...input,
     event_id: eventId,
     id: input.id ?? eventId,
     event_type: eventType,
-    type: input.type ?? eventType,
+    type: (input as { type?: string }).type ?? eventType,
     trace_id: String(input.trace_id ?? 'unscoped-trace'),
     step_index: Number.isFinite(input.step_index) ? Number(input.step_index) : 0,
+    timestamp,
+    source: String((input as { source?: string }).source ?? 'unknown'),
+    payload,
+    context,
   }
 }
 
@@ -290,6 +349,16 @@ const baseState: ObservabilityState = {
   connection: 'DISCONNECTED',
   lastMessageTimestamp: 0,
   safeMode: false,
+  graphMode: 'OBSERVABILITY',
+  filters: {},
+  replay: {
+    enabled: false,
+    speed: 1,
+    isPlaying: false,
+  },
+  exportOptions: {
+    format: 'PNG',
+  },
 }
 
 storeState = {
@@ -307,7 +376,7 @@ storeState = {
       sortTraceEventIds(traceIds, current.events, normalized)
 
       const decisionEvents =
-        normalized.event_type === 'DECISION'
+        normalized.event_type === 'DECISION' || normalized.event_type === 'DECISION_EVENT'
           ? [...current.decisionEvents, normalized.event_id].slice(-MAX_INDEX_SIZE)
           : current.decisionEvents
       const anomalyEvents =
@@ -362,7 +431,7 @@ storeState = {
         sortTraceEventIds(nextTrace, next.events, normalized)
 
         const decisionEvents =
-          normalized.event_type === 'DECISION'
+          normalized.event_type === 'DECISION' || normalized.event_type === 'DECISION_EVENT'
             ? [...next.decisionEvents, normalized.event_id].slice(-MAX_INDEX_SIZE)
             : next.decisionEvents
         const anomalyEvents =
@@ -468,6 +537,49 @@ storeState = {
   },
   setSafeMode: (enabled) => {
     setState((current) => ({ ...current, safeMode: enabled }))
+  },
+  setGraphMode: (mode) => {
+    setState((current) => (current.graphMode === mode ? current : { ...current, graphMode: mode }))
+  },
+  setFilters: (partial) => {
+    setState((current) => ({
+      ...current,
+      filters: {
+        ...current.filters,
+        ...partial,
+      },
+    }))
+  },
+  clearFilters: () => {
+    setState((current) => ({
+      ...current,
+      filters: {},
+    }))
+  },
+  setReplay: (partial) => {
+    setState((current) => ({
+      ...current,
+      replay: {
+        ...current.replay,
+        ...partial,
+      },
+    }))
+  },
+  resetReplay: () => {
+    setState((current) => ({
+      ...current,
+      replay: {
+        enabled: false,
+        speed: 1,
+        isPlaying: false,
+      },
+    }))
+  },
+  setExportOptions: (opts) => {
+    setState((current) => ({
+      ...current,
+      exportOptions: opts,
+    }))
   },
 }
 
