@@ -21,14 +21,20 @@ const makeInsightEvent = (overrides: Record<string, unknown> = {}) => ({
 })
 
 const clearInsights = () => {
-  // Drain insight index by switching to PAUSED (which blocks new events)
-  // then force-reset via cleanupStaleEvents with a far-future now
   act(() => {
     observabilityStore.getState().cleanupStaleEvents(Date.now() + 10 * 60 * 1000)
   })
 }
 
+const ensureLiveMode = () => {
+  act(() => {
+    const { mode, toggleMode } = observabilityStore.getState()
+    if (mode === 'PAUSED') toggleMode()
+  })
+}
+
 afterEach(() => {
+  ensureLiveMode()
   clearInsights()
 })
 
@@ -36,7 +42,6 @@ describe('MetaInsightsPanel', () => {
   it('renders empty state when no insights are present', () => {
     render(<MetaInsightsPanel />)
 
-    // Panel is collapsed by default — open it
     fireEvent.click(screen.getByRole('button', { name: /meta insights/i }))
 
     expect(
@@ -62,7 +67,6 @@ describe('MetaInsightsPanel', () => {
     expect(screen.getByText('Bottleneck')).toBeInTheDocument()
     expect(screen.getByText('Agent alpha is a throughput bottleneck.')).toBeInTheDocument()
     expect(screen.getByText('High')).toBeInTheDocument()
-    // timestamp is rendered (format HH:MM:SS.mmm or date — just assert it's present)
     expect(screen.getByText(/agent-alpha/i)).toBeInTheDocument()
   })
 
@@ -74,14 +78,11 @@ describe('MetaInsightsPanel', () => {
     render(<MetaInsightsPanel />)
     const toggleBtn = screen.getByRole('button', { name: /meta insights/i })
 
-    // Initially collapsed — body not visible
     expect(screen.queryByText(/agent alpha/i)).not.toBeInTheDocument()
 
-    // Expand
     fireEvent.click(toggleBtn)
     expect(screen.getByText('Agent alpha is a throughput bottleneck.')).toBeInTheDocument()
 
-    // Collapse
     fireEvent.click(toggleBtn)
     expect(screen.queryByText('Agent alpha is a throughput bottleneck.')).not.toBeInTheDocument()
   })
@@ -117,10 +118,53 @@ describe('MetaInsightsPanel', () => {
 
     expect(screen.getByText('Load Risk')).toBeInTheDocument()
     expect(screen.getByText('Load risk detected across cluster.')).toBeInTheDocument()
-    // No severity badge, no agents line
     expect(screen.queryByText(/agents:/i)).not.toBeInTheDocument()
     expect(screen.queryByText('High')).not.toBeInTheDocument()
     expect(screen.queryByText('Low')).not.toBeInTheDocument()
     expect(screen.queryByText('Medium')).not.toBeInTheDocument()
+  })
+
+  it('freezes panel in PAUSED mode — new insight emitted after pause does not appear', () => {
+    // Seed one insight before pause
+    act(() => {
+      observabilityStore.getState().addEvent(
+        makeInsightEvent({ summary: 'Pre-pause insight.', category: 'bottleneck' })
+      )
+    })
+
+    render(<MetaInsightsPanel />)
+    fireEvent.click(screen.getByRole('button', { name: /meta insights/i }))
+    expect(screen.getByText('Pre-pause insight.')).toBeInTheDocument()
+
+    // Switch to PAUSED — snapshot freezes here
+    act(() => {
+      observabilityStore.getState().toggleMode()
+    })
+
+    // Emit a new insight after pause
+    act(() => {
+      observabilityStore.getState().addEvent(
+        makeInsightEvent({ summary: 'Post-pause insight.', category: 'anomaly_correlation' })
+      )
+    })
+
+    // Post-pause insight must NOT appear; pre-pause insight still visible
+    expect(screen.queryByText('Post-pause insight.')).not.toBeInTheDocument()
+    expect(screen.getByText('Pre-pause insight.')).toBeInTheDocument()
+  })
+
+  it('renders at most 200 rows even when the store holds more than 200 insights', () => {
+    act(() => {
+      for (let i = 0; i < 210; i++) {
+        observabilityStore.getState().addEvent(
+          makeInsightEvent({ summary: `Insight number ${i}.`, category: 'bottleneck' })
+        )
+      }
+    })
+
+    render(<MetaInsightsPanel />)
+
+    // The count pill should show 200, not 210
+    expect(screen.getByText('200')).toBeInTheDocument()
   })
 })
