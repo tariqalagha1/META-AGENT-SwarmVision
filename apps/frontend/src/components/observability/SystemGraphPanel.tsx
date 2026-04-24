@@ -45,14 +45,29 @@ type GraphNodeData = {
 const PANEL_WIDTH = 740
 const PANEL_HEIGHT = 420
 const ACTIVITY_WINDOW_MS = 2000
-const DETERMINISTIC_SEED = 19
 
-function hashAgentId(agentId: string) {
-  let hash = DETERMINISTIC_SEED
-  for (let i = 0; i < agentId.length; i += 1) {
-    hash = (hash * 31 + agentId.charCodeAt(i)) >>> 0
+function stableNodePosition(
+  nodeId: string,
+  radius: number = 260,
+  jitterAmount: number = 40,
+): { x: number; y: number } {
+  // FNV-1a 32-bit hash — deterministic, good distribution for short strings
+  let h = 2166136261
+  for (let i = 0; i < nodeId.length; i++) {
+    h = Math.imul(h ^ nodeId.charCodeAt(i), 16777619)
   }
-  return hash
+
+  // Two independent fractions: one for angle, one for radius jitter
+  const hashA = (h >>> 0) / 0xffffffff
+  const hashB = ((Math.imul(h, 2654435761) >>> 0) / 0xffffffff)
+
+  const angle = hashA * Math.PI * 2
+  const effectiveRadius = radius + (hashB - 0.5) * 2 * jitterAmount
+
+  return {
+    x: Math.cos(angle) * effectiveRadius,
+    y: Math.sin(angle) * effectiveRadius,
+  }
 }
 
 export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphPanelProps) {
@@ -77,20 +92,11 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
 
   const baseNodePositions = useMemo(() => {
     const positions = new Map<string, { x: number; y: number }>()
-    const nodeCount = Math.max(1, graphData.nodes.length)
-
-    graphData.nodes.forEach((node, index) => {
-      const hash = hashAgentId(node.id)
-      const angle = ((index + 1) / nodeCount) * Math.PI * 2 + (hash % 360) * (Math.PI / 1800)
-      const radius = 120 + (hash % 90)
-      positions.set(node.id, {
-        x: PANEL_WIDTH / 2 + radius * Math.cos(angle),
-        y: PANEL_HEIGHT / 2 + radius * Math.sin(angle),
-      })
-    })
-
+    for (const node of graphData.nodes) {
+      positions.set(node.id, stableNodePosition(node.id))
+    }
     return positions
-  }, [graphData.nodes.length, DETERMINISTIC_SEED])
+  }, [graphData.nodes])
 
   const nextNodeMap = useMemo(() => {
     const now = Date.now()
