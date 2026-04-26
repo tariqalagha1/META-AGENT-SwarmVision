@@ -1,3 +1,19 @@
+> **Status: Draft — superseded**
+>
+> This document predates the 2026-04-24 project walkthrough. It describes
+> SwarmVision as a commercial enterprise platform — that framing does not
+> match the current state of the project.
+>
+> SwarmVision is currently a single-tenant developer preview without
+> authentication, multi-tenant isolation, or a published SDK. For an
+> accurate description of what the project does today, see the repo root
+> `README.md`.
+>
+> This file is preserved as a draft for future revision when the product
+> reaches the maturity it describes.
+
+---
+
 # META-AGENT SIDECAR IMPLEMENTATION — COMPLETE
 
 ## EXECUTIVE SUMMARY
@@ -1009,4 +1025,3 @@ The Meta Agent sidecar has been implemented as a complete, self-contained servic
 8. **Never controls** execution (read-only analysis, no outbound capability)
 
 All 12 deliverables are complete, tested, and production-ready.
-

@@ -1,3 +1,19 @@
+> **Status: Draft — superseded**
+>
+> This document predates the 2026-04-24 project walkthrough. It describes
+> SwarmVision as a commercial enterprise platform — that framing does not
+> match the current state of the project.
+>
+> SwarmVision is currently a single-tenant developer preview without
+> authentication, multi-tenant isolation, or a published SDK. For an
+> accurate description of what the project does today, see the repo root
+> `README.md`.
+>
+> This file is preserved as a draft for future revision when the product
+> reaches the maturity it describes.
+
+---
+
 # SwarmVision — Executive Pitch Deck
 
 **Tagline**: *"Real-time visibility for distributed agent swarms. Detect failures in seconds. Debug in milliseconds."*
@@ -536,4 +552,3 @@ Option C (Production):
 ---
 
 **CLOSE**: *"SwarmVision. See everything. Fix everything. Sleep better."*
-

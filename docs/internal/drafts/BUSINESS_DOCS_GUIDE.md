@@ -1,3 +1,19 @@
+> **Status: Draft — superseded**
+>
+> This document predates the 2026-04-24 project walkthrough. It describes
+> SwarmVision as a commercial enterprise platform — that framing does not
+> match the current state of the project.
+>
+> SwarmVision is currently a single-tenant developer preview without
+> authentication, multi-tenant isolation, or a published SDK. For an
+> accurate description of what the project does today, see the repo root
+> `README.md`.
+>
+> This file is preserved as a draft for future revision when the product
+> reaches the maturity it describes.
+
+---
+
 # SwarmVision Business Documentation — Complete Guide
 
 ## 📚 What's Included
@@ -372,4 +388,3 @@ These documents are designed to be:
 **Keep these documents updated as your product evolves.**
 
 **You now have everything you need to explain SwarmVision to any audience — from a 5-minute elevator pitch to a 2-hour deep-dive investor meeting.**
-

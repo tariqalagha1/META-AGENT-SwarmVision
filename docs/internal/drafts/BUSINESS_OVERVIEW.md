@@ -1,3 +1,19 @@
+> **Status: Draft — superseded**
+>
+> This document predates the 2026-04-24 project walkthrough. It describes
+> SwarmVision as a commercial enterprise platform — that framing does not
+> match the current state of the project.
+>
+> SwarmVision is currently a single-tenant developer preview without
+> authentication, multi-tenant isolation, or a published SDK. For an
+> accurate description of what the project does today, see the repo root
+> `README.md`.
+>
+> This file is preserved as a draft for future revision when the product
+> reaches the maturity it describes.
+
+---
+
 # SwarmVision — Business Overview & Product Story
 
 ---
@@ -426,4 +442,3 @@ What they get: Agent health snapshot, SLA tracking (implicit in dashboard)
 5. **Optimize**: Use insights to improve agent behavior over time (ongoing)
 
 **Bottom line**: SwarmVision turns your black-box swarm into a **transparent, observable, debuggable system** where problems are visible before they become critical.
-
