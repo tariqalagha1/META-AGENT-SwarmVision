@@ -1,65 +1,172 @@
-# SwarmVision Graph
+# SwarmVision
 
-A web-based observability layer that acts as a live monitoring and swarm visualization system for other applications.
+Real-time observability for multi-agent AI systems. SwarmVision streams events from your agents into a live graph, execution timeline, decision log, and alert feed — with a passive meta-agent sidecar that analyzes the stream and surfaces insights without ever writing back to your agents.
 
-## Project Purpose
+**Current state:** developer preview. The core pipeline (event ingest → Neo4j → WebSocket broadcast → React UI) is working. Authentication, multi-tenancy enforcement, and production hardening are on the roadmap — see [What SwarmVision does NOT do yet](#what-swarmvision-does-not-do-yet) below.
 
-SwarmVision Graph provides real-time visualization and monitoring capabilities for distributed systems, enabling developers and operators to observe and analyze swarm behaviors, application interactions, and system health metrics through an intuitive graph-based interface.
+---
 
-## Workspace Structure
+## What SwarmVision does
 
-This project uses a multi-root VS Code workspace structure for clean separation of concerns:
+- **Live system graph** — agents appear as nodes, handoffs appear as edges, updated in real time as events arrive
+- **Execution timeline** — per-trace waterfall of task steps, durations, and failures
+- **Decision log** — every `DECISION_EVENT` your agents emit, with decision-flag badges and agent attribution
+- **Alerts feed** — `ANOMALY` events surfaced with severity and upstream chain
+- **Meta-agent insights** — a passive sidecar (separate process) applies 5 heuristics to the event stream and emits `META_INSIGHT` events: failure-rate spikes, handoff latency outliers, retry storms, cascade failures, and idle agents
+- **Replay** — scrub back through historical topology snapshots stored in Neo4j
+- **Three graph layouts** — Observability (stable circular), Pipeline (DAG lane layout), Cinematic (dark theme with glow)
+
+## What SwarmVision does NOT do yet
+
+- **No authentication** — the API has no token validation; any client that can reach port 8012 can publish events and read all data
+- **No multi-tenant data isolation** — `tenant_id` scopes the UI view but events from different tenants share the same Neo4j database and the same WebSocket channels
+- **No SDK for event publishing** — the `packages/sdk/` package exists and compiles but has no published release and no framework-specific integrations (LangGraph, CrewAI, etc.)
+- **No HTTPS/WSS** — runs plain HTTP/WS; you must add a TLS-terminating reverse proxy for any non-localhost deployment
+- **No production backup or monitoring** — Neo4j runs as a plain container with no volume backup strategy documented
+
+---
+
+## Quick start (Docker Compose)
+
+The recommended way to run SwarmVision. Requires Docker Desktop.
+
+```bash
+# 1. Copy the env template and fill in credentials
+cp .env.example .env
+# Edit .env — set NEO4J_PASSWORD and META_SHARED_SECRET
+
+# 2. Boot the stack
+docker compose up --build
+
+# 3. Open the UI
+open http://localhost:5173
+```
+
+The stack starts three services:
+
+| Service | Port | Role |
+|---------|------|------|
+| `swarmvision-backend` | 8012 | FastAPI — event ingest, WebSocket broadcast, Neo4j persistence |
+| `meta-agent` | 9001 (internal) | Passive heuristic sidecar — never exposed to host |
+| `neo4j` | internal only | Graph database for persistence and replay |
+
+> **Note:** `meta-agent` is not reachable from the host. The backend calls it internally. If you're running the backend without Docker, the meta-agent won't be available and the Insights panel will stay empty.
+
+## Running the frontend separately (development)
+
+```bash
+cd apps/frontend
+npm install
+npm run dev
+# Opens at http://localhost:5173
+# Connects to backend at ws://localhost:8012/ws/events by default
+```
+
+To point the frontend at a different backend:
+
+```bash
+VITE_WS_URL=ws://your-host:8012/ws/events npm run dev
+```
+
+## Publishing events
+
+The backend accepts events at `POST http://localhost:8012/events/broadcast`.
+
+Minimal event body:
+
+```json
+{
+  "type": "AGENT_SPAWN",
+  "payload": { "agent_id": "worker-1", "agent_name": "Worker 1" },
+  "source": "my-system"
+}
+```
+
+### Supported event types
+
+| Type | Effect in UI |
+|------|-------------|
+| `AGENT_SPAWN` | Creates agent node in System Graph |
+| `AGENT_MOVE` | Updates agent node |
+| `AGENT_TERMINATION` | Marks agent node terminated |
+| `TASK_START` | Adds step to Execution Timeline |
+| `TASK_HANDOFF` | Creates directed edge between agents |
+| `TASK_SUCCESS` | Updates timeline step |
+| `TASK_FAIL` | Marks agent FAILED in graph, adds to Alerts |
+| `FLOW_EVENT` | Creates directed edge between agents |
+| `DECISION_EVENT` | Adds entry to Decision Log |
+| `ANOMALY` | Adds entry to Alerts feed |
+| `META_INSIGHT` | Adds entry to Meta Insights panel (emitted by sidecar) |
+
+> `PIPELINE_UPDATE` and `HEALTH_CHECK` are accepted by the backend but not rendered in the UI — they are stored in Neo4j only.
+
+### Optional context envelope
+
+To scope events to a tenant or app:
+
+```json
+{
+  "type": "TASK_HANDOFF",
+  "payload": {
+    "source_agent_id": "worker-1",
+    "target_agent_id": "worker-2"
+  },
+  "context": {
+    "tenant_id": "acme",
+    "app_id": "pipeline-v2",
+    "trace_id": "trace-abc123"
+  }
+}
+```
+
+The UI accepts `?tenant_id=acme&app_id=pipeline-v2` query params to filter the view.
+
+---
+
+## Repository structure
 
 ```
-/workspace
-   /swarmvision-graph        ← main product repo
-   /langgraph-reference      ← external reference repo
-   /react-force-graph-reference ← external reference repo
+swarmvision-graph/
+├── apps/
+│   ├── backend/          FastAPI service (port 8012 in Docker)
+│   └── frontend/         React + Vite UI (port 5173 in dev)
+├── services/
+│   └── meta-agent/       Passive heuristic sidecar (port 9001, internal)
+├── packages/
+│   ├── sdk/              TypeScript client (no published release yet)
+│   └── shared-types/     Shared TypeScript types
+├── docs/
+│   ├── SETUP.md          Detailed setup and configuration reference
+│   ├── ARCHITECTURE.md   System design and component contracts
+│   └── walkthroughs/     Audit documents and project history
+├── docker-compose.yml
+└── .env.example
 ```
 
-### Main Repository (swarmvision-graph)
+## Running tests
 
-The main repository contains our product code organized as a monorepo:
+```bash
+# Frontend (from apps/frontend/)
+cd apps/frontend && npm run test
 
-- `apps/frontend/` - React-based web application for visualization
-- `apps/backend/` - API server and data processing
-- `packages/sdk/` - SDK for integrating with SwarmVision Graph
-- `packages/shared-types/` - Shared TypeScript types and interfaces
-- `docs/` - Documentation and guides
-- `tests/` - Test suites and integration tests
+# Backend (from apps/backend/)
+cd apps/backend && pip install -r requirements.txt && pytest
 
-### External Reference Repositories
+# Meta-agent sidecar (from services/meta-agent/)
+cd services/meta-agent && pip install -r requirements.txt && pytest
+```
 
-The external repositories (`langgraph-reference` and `react-force-graph-reference`) are cloned as sibling folders and serve as architectural references only. They are NOT part of our main repository and should never be merged or copied into our codebase.
+## Environment variables
 
-These repositories provide:
-- API patterns and architectural insights
-- Implementation examples for graph visualization
-- Reference implementations for similar functionality
+See `.env.example` for the full list. Required variables with no defaults:
 
-## How to Open Multi-Root Workspace
+| Variable | Description |
+|----------|-------------|
+| `NEO4J_PASSWORD` | Neo4j database password |
+| `META_SHARED_SECRET` | Shared secret for backend → meta-agent authentication |
 
-1. Open VS Code
-2. File → Open Workspace from File...
-3. Navigate to the workspace root and select `swarmvision.code-workspace`
+---
 
-This will open all three folders (main repo + references) in a single VS Code instance, allowing you to reference external code while keeping our repository clean.
+## License
 
-## Development Setup
-
-1. Clone the external reference repositories:
-   ```bash
-   git clone https://github.com/langchain-ai/langgraph ../langgraph-reference
-   git clone https://github.com/vasturiano/react-force-graph ../react-force-graph-reference
-   ```
-
-2. Open the multi-root workspace as described above
-
-3. Install dependencies in the main repo (when package.json is added)
-
-## Architecture Boundaries
-
-- **DO NOT** copy code from external reference repositories into the main repo
-- Use external repos only for understanding patterns and APIs
-- Keep the main repository isolated and owned by our product only
-- Reference external implementations through documentation and API calls, not direct code inclusion
+Private. Not yet licensed for redistribution.
