@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 from .models import DiagnosticStage, UnifiedVerdict
@@ -13,6 +13,14 @@ EnforcementMode = Literal["off", "soft", "strict"]
 # Resolved once at import time; can be overridden in tests by patching
 # get_enforcement_mode() or by changing the env var before the first import.
 _VALID_MODES: frozenset[str] = frozenset({"off", "soft", "strict"})
+_CRITICAL_FAILURE_STAGES: frozenset[str] = frozenset(
+    {
+        "fake_success_detection",
+        "contract_integrity",
+        "lineage_consistency",
+        "deduplication_honesty",
+    }
+)
 
 
 def get_enforcement_mode() -> EnforcementMode:
@@ -53,12 +61,23 @@ def evaluate_enforcement(
     Partial-block rule: if fake_success_detection = failed, block regardless
     of mode (except "off").
     """
+    stage_map = {s.name: s.status for s in stages}
+
+    # Critical integrity enforcement: always block regardless of
+    # DIAGNOSTIC_ENFORCEMENT mode, score, or unified verdict.
+    for stage_name in _CRITICAL_FAILURE_STAGES:
+        if stage_map.get(stage_name) == "failed":
+            return EnforcementDecision(
+                block=True,
+                warn=False,
+                reason=f"critical diagnostic stage failed: {stage_name}",
+                trigger=f"critical_diagnostic_failure:{stage_name}",
+            )
+
     mode = get_enforcement_mode()
 
     if mode == "off":
         return EnforcementDecision()
-
-    stage_map = {s.name: s.status for s in stages}
 
     # ── Partial-block rule: always fires in soft or strict ─────────────────
     if stage_map.get("fake_success_detection") == "failed":

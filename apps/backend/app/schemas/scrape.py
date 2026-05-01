@@ -38,5 +38,6 @@ class ScrapeResponse(BaseModel):
     output_data: dict[str, Any] = Field(default_factory=dict)
     trace_id: str | None = None
     diagnostic: DiagnosticResult
+    unified: UnifiedVerdictResult | None = None
     # Populated only when DIAGNOSTIC_ENFORCEMENT=soft and verdict=FAIL
     enforcement_warning: EnforcementWarning | None = None

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import OrderedDict
+from datetime import datetime, timezone
 import hashlib
 import json
 import logging
@@ -8,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query
 
 from app.diagnostics import (
     DiagnosticCollector,
@@ -16,7 +18,8 @@ from app.diagnostics import (
     evaluate_enforcement,
     run_coverage_checks,
 )
-from app.observability import get_trace_context
+from app.diagnostics.enforcement import get_enforcement_mode
+from app.realtime.diagnostic_stream import emit_diagnostic_result
 from app.schemas.scrape import (
     DiagnosticResult,
     EnforcementWarning,
@@ -28,6 +31,9 @@ from app.schemas.scrape import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["scrape"])
+diagnostic_store: OrderedDict[str, dict[str, Any]] = OrderedDict()
+diagnostic_trace_index: OrderedDict[str, str] = OrderedDict()
+_DIAGNOSTIC_STORE_MAX: int = 200
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -84,6 +90,45 @@ _RECORD_WARN_RATIO: float = 0.0
 # Module 13: when deduplication is claimed, at least this fraction of raw
 # records must actually be duplicates to make the claim credible
 _DEDUP_PLAUSIBILITY_RATIO: float = 0.05
+
+
+def _store_diagnostic_record(
+    request_id: str,
+    trace_id: str,
+    diagnostic: DiagnosticResult,
+    unified: Any,
+    decision: Any,
+) -> None:
+    record: dict[str, Any] = {
+        "request_id": request_id,
+        "trace_id": trace_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "diagnostic": diagnostic.model_dump(mode="json"),
+        "unified": {
+            "final_score": unified.final_score,
+            "effective_weight_used": unified.effective_weight_used,
+            "verdict": unified.verdict,
+            "top_issues": unified.top_issues,
+        },
+        "enforcement": {
+            "mode": get_enforcement_mode(),
+            "block": decision.block,
+            "warn": decision.warn,
+        },
+    }
+    if decision.trigger:
+        record["enforcement"]["trigger"] = decision.trigger
+
+    if request_id in diagnostic_store:
+        diagnostic_store.pop(request_id)
+    diagnostic_store[request_id] = record
+    diagnostic_trace_index[trace_id] = request_id
+
+    while len(diagnostic_store) > _DIAGNOSTIC_STORE_MAX:
+        evicted_request_id, evicted_record = diagnostic_store.popitem(last=False)
+        evicted_trace_id = str(evicted_record.get("trace_id", ""))
+        if evicted_trace_id and diagnostic_trace_index.get(evicted_trace_id) == evicted_request_id:
+            diagnostic_trace_index.pop(evicted_trace_id, None)
 
 
 # ── Module 1 — Input Integrity ───────────────────────────────────────────────
@@ -937,6 +982,24 @@ def _run_diagnostic_engine(
     )
 
 
+@router.get("/diagnostics")
+async def list_diagnostics(limit: int = Query(default=20, ge=1, le=200)) -> list[dict[str, Any]]:
+    records = list(diagnostic_store.values())
+    return list(reversed(records))[:limit]
+
+
+@router.get("/diagnostics/{request_id}")
+async def get_diagnostic(request_id: str) -> dict[str, Any]:
+    record = diagnostic_store.get(request_id)
+    if record is None:
+        mapped_request_id = diagnostic_trace_index.get(request_id)
+        if mapped_request_id:
+            record = diagnostic_store.get(mapped_request_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"diagnostic for request_id or trace_id '{request_id}' not found")
+    return record
+
+
 @router.post("/scrape", response_model=ScrapeResponse)
 async def scrape(request: ScrapeRequest) -> ScrapeResponse:
     # ── 1. Resolve request_id ────────────────────────────────────────────────
@@ -944,7 +1007,7 @@ async def scrape(request: ScrapeRequest) -> ScrapeResponse:
 
     # ── 2. Capture input_data and resolve trace ──────────────────────────────
     input_data = request.input_data
-    trace_id = request.trace_id or get_trace_context().trace_id
+    trace_id = request.trace_id or str(uuid4())
 
     # ── 3. Business logic (placeholder — replace with real call) ────────────
     #   Nothing here is modified. The block below represents wherever the
@@ -989,6 +1052,48 @@ async def scrape(request: ScrapeRequest) -> ScrapeResponse:
             top_issues=unified.top_issues,
         ),
     )
+    _store_diagnostic_record(
+        request_id=request_id,
+        trace_id=trace_id,
+        diagnostic=diagnostic_result,
+        unified=unified,
+        decision=decision,
+    )
+    diagnostic_event_id = str(uuid4())
+    diagnostic_event = {
+        "event_id": diagnostic_event_id,
+        "id": diagnostic_event_id,
+        "event_type": "DIAGNOSTIC_RESULT",
+        "type": "DIAGNOSTIC_RESULT",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source": "diagnostic-engine",
+        "trace_id": trace_id,
+        "request_id": request_id,
+        "diagnostic": diagnostic_result.model_dump(mode="json"),
+        "unified": diagnostic_result.unified.model_dump(mode="json") if diagnostic_result.unified else None,
+        "enforcement": {
+            "mode": get_enforcement_mode(),
+            "block": decision.block,
+            "warn": decision.warn,
+            "trigger": decision.trigger or None,
+        },
+        "payload": {
+            "request_id": request_id,
+            "trace_id": trace_id,
+            "diagnostic": diagnostic_result.model_dump(mode="json"),
+            "unified": diagnostic_result.unified.model_dump(mode="json") if diagnostic_result.unified else None,
+            "enforcement": {
+                "mode": get_enforcement_mode(),
+                "block": decision.block,
+                "warn": decision.warn,
+                "trigger": decision.trigger or None,
+            },
+        },
+        "context": {
+            "trace_id": trace_id,
+        },
+    }
+    await emit_diagnostic_result(diagnostic_event)
 
     # ── 6. Apply enforcement decision and return ─────────────────────────────
     if decision.block:
@@ -1003,6 +1108,7 @@ async def scrape(request: ScrapeRequest) -> ScrapeResponse:
             output_data=blocked_output,
             trace_id=trace_id,
             diagnostic=diagnostic_result,
+            unified=diagnostic_result.unified,
         )
 
     enforcement_warning = (
@@ -1013,5 +1119,6 @@ async def scrape(request: ScrapeRequest) -> ScrapeResponse:
         output_data=output_data,
         trace_id=trace_id,
         diagnostic=diagnostic_result,
+        unified=diagnostic_result.unified,
         enforcement_warning=enforcement_warning,
     )

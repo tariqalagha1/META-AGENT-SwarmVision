@@ -53,6 +53,7 @@ export type GraphState = {
   nodes: Map<string, GraphNode>
   edges: Map<string, GraphEdge>
   unresolvedEdges: Map<string, GraphEvent>
+  lastAgentByTrace: Map<string, string>
 }
 
 type AgentSnapshot = Record<
@@ -64,6 +65,14 @@ type AgentSnapshot = Record<
 >
 
 export const GRAPH_EVENT_TYPES = new Set([
+  'SWARM_STARTED',
+  'PLANNER_DECISION',
+  'AGENT_STEP_STARTED',
+  'AGENT_STEP_COMPLETED',
+  'AGENT_STEP_FAILED',
+  'AGENT_STEP_RETRY',
+  'SWARM_COMPLETED',
+  'SWARM_FAILED',
   'AGENT_SPAWN',
   'TASK_START',
   'TASK_HANDOFF',
@@ -133,6 +142,7 @@ export const createGraphState = (): GraphState => ({
   nodes: new Map<string, GraphNode>(),
   edges: new Map<string, GraphEdge>(),
   unresolvedEdges: new Map<string, GraphEvent>(),
+  lastAgentByTrace: new Map<string, string>(),
 })
 
 export const setPersistedNodePosition = (agentId: string, position: GraphPosition) => {
@@ -181,6 +191,7 @@ export const applyNormalizedEvents = (
   let nextNodes = prevState.nodes
   let nextEdges = prevState.edges
   let nextUnresolvedEdges = prevState.unresolvedEdges
+  let nextLastAgentByTrace = prevState.lastAgentByTrace
   const preexistingUnresolvedIds = new Set(prevState.unresolvedEdges.keys())
   let changed = false
   let supportedEventCount = 0
@@ -200,6 +211,12 @@ export const applyNormalizedEvents = (
   const ensureUnresolvedWritable = () => {
     if (nextUnresolvedEdges === prevState.unresolvedEdges) {
       nextUnresolvedEdges = new Map(prevState.unresolvedEdges)
+    }
+  }
+
+  const ensureLastAgentWritable = () => {
+    if (nextLastAgentByTrace === prevState.lastAgentByTrace) {
+      nextLastAgentByTrace = new Map(prevState.lastAgentByTrace)
     }
   }
 
@@ -310,6 +327,7 @@ export const applyNormalizedEvents = (
     supportedEventCount += 1
     const eventId = getEventId(event)
     const timestamp = getEventTimestamp(event)
+    const traceId = readString(event.trace_id)
     const agentId = getEventAgentId(event)
     const source = getSourceAgentId(event)
     const target = getTargetAgentId(event)
@@ -317,7 +335,11 @@ export const applyNormalizedEvents = (
     const targetKnownBeforeEvent = target ? nextNodes.has(target) : false
 
     const stateHint: GraphNode['state'] | undefined =
-      eventType === 'TASK_FAIL' ? 'FAILED' : eventType === 'ANOMALY' ? 'DEGRADED' : undefined
+      eventType === 'TASK_FAIL' || eventType === 'AGENT_STEP_FAILED'
+        ? 'FAILED'
+        : eventType === 'ANOMALY'
+          ? 'DEGRADED'
+          : undefined
 
     upsertNode(agentId, timestamp, stateHint)
     upsertNode(source, timestamp)
@@ -389,6 +411,22 @@ export const applyNormalizedEvents = (
         }
       }
     }
+
+    if (
+      eventType === 'AGENT_STEP_STARTED' ||
+      eventType === 'AGENT_STEP_COMPLETED' ||
+      eventType === 'AGENT_STEP_FAILED' ||
+      eventType === 'AGENT_STEP_RETRY'
+    ) {
+      if (traceId && agentId) {
+        const previousAgent = nextLastAgentByTrace.get(traceId)
+        if (previousAgent && previousAgent !== agentId) {
+          upsertEdge(previousAgent, agentId, 'FLOW_EVENT', eventId, timestamp)
+        }
+        ensureLastAgentWritable()
+        nextLastAgentByTrace.set(traceId, agentId)
+      }
+    }
   }
 
   if (supportedEventCount === 0 && import.meta.env.DEV) {
@@ -428,6 +466,7 @@ export const applyNormalizedEvents = (
     nodes: nextNodes,
     edges: nextEdges,
     unresolvedEdges: nextUnresolvedEdges,
+    lastAgentByTrace: nextLastAgentByTrace,
   }
 
   if (import.meta.env.DEV) {
@@ -479,6 +518,7 @@ export const applyNodePosition = (
     nodes: nextNodes,
     edges: prevState.edges,
     unresolvedEdges: prevState.unresolvedEdges,
+    lastAgentByTrace: prevState.lastAgentByTrace,
   }
 }
 
@@ -529,6 +569,7 @@ export const applyAgentSnapshot = (
     nodes: nextNodes,
     edges: prevState.edges,
     unresolvedEdges: prevState.unresolvedEdges,
+    lastAgentByTrace: prevState.lastAgentByTrace,
   }
 }
 

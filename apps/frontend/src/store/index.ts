@@ -31,3 +31,4 @@ export {
   useTopologyEvents,
 } from './selectors'
 export type { GraphData, GraphEdge, GraphNode, GraphViewData } from './selectors'
+export { useEcosystemTraceState } from './ecosystemRuntimeStore'

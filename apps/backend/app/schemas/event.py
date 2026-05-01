@@ -117,6 +117,11 @@ class Event(BaseModel):
             or (values.get("context", {}) or {}).get("parent_event_id")
             or (values.get("context", {}) or {}).get("previous_event_id")
         )
+        values["trace_id"] = (
+            values.get("trace_id")
+            or (values.get("context", {}) or {}).get("trace_id")
+            or str(uuid4())
+        )
         if values.get("step_index") is None:
             values["step_index"] = 0
         return values

@@ -11,6 +11,7 @@ from collections import deque
 import logging
 from time import perf_counter
 import asyncio
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket
 from fastapi.concurrency import run_in_threadpool
@@ -44,6 +45,8 @@ from app.observability import (
     normalize_error,
     register_event_in_trace,
 )
+from app.realtime.diagnostic_stream import register_diagnostic_emitter
+from app.realtime.runtime_stream import register_runtime_event_emitter
 from app.schemas.event import Event
 from app.schemas.analytics import (
     AnalyticsBottlenecksResponse,
@@ -69,6 +72,7 @@ from app.schemas.observability import (
 )
 from app.websocket.manager import WebSocketManager
 from app.api.v1.scrape import router as scrape_router
+from app.api.v1.swarm import router as swarm_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -318,6 +322,7 @@ app.add_middleware(
 )
 
 app.include_router(scrape_router)
+app.include_router(swarm_router)
 
 
 @app.middleware("http")
@@ -432,6 +437,13 @@ async def broadcast_event(event: Event):
 
     try:
         payload = event.model_dump(mode="json")
+        if not payload.get("trace_id"):
+            payload["trace_id"] = str(uuid4())
+        context = payload.get("context") or {}
+        if not isinstance(context, dict):
+            context = {}
+        context["trace_id"] = payload["trace_id"]
+        payload["context"] = context
         await publish_event(payload)
         return {"message": "Event broadcasted successfully", "event": event}
     except Exception as exc:
@@ -760,6 +772,20 @@ async def anomalies(limit: int = Query(default=50, ge=1, le=200)):
 @app.get("/replay/{trace_id}", response_model=TracePathResponse)
 async def replay_by_trace(trace_id: str):
     return await trace_path(trace_id)
+
+
+async def _emit_diagnostic_to_ws(payload: dict) -> None:
+    await ws_manager.broadcast(payload, channel="events")
+
+
+register_diagnostic_emitter(_emit_diagnostic_to_ws)
+
+
+async def _emit_runtime_to_pipeline(payload: dict) -> None:
+    await publish_event(payload)
+
+
+register_runtime_event_emitter(_emit_runtime_to_pipeline)
 
 
 if __name__ == "__main__":

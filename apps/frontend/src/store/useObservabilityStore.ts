@@ -56,6 +56,26 @@ export type ObservabilityEvent = WebSocketEvent & {
   step_index: number
 }
 
+export type RunHistoryStep = {
+  agent_id: string | null
+  step_name: string
+  status: 'completed' | 'failed' | 'retry' | 'started'
+  timestamp: string
+  error?: string | null
+}
+
+export type RunHistoryEntry = {
+  trace_id: string
+  task: string
+  status: 'running' | 'completed' | 'failed'
+  started_at: string
+  completed_at: string | null
+  steps: RunHistoryStep[]
+  final_output: unknown
+  degraded: boolean
+  errors: string[]
+}
+
 type IngressEvent = WebSocketEvent | NormalizedEvent
 
 const MAX_EVENTS = 5000
@@ -77,6 +97,7 @@ type ObservabilityState = {
   anomalyEvents: string[]
   insightEvents: string[]
   selectedTraceId: string | null
+  selectedRequestId: string | null
   selectedAgentId: string | null
   selectedEventId: string | null
   mode: StreamMode
@@ -87,6 +108,7 @@ type ObservabilityState = {
   filters: GraphFilters
   replay: ReplayState
   exportOptions: ExportOptions
+  runHistory: Record<string, RunHistoryEntry>
 }
 
 type ObservabilityActions = {
@@ -96,6 +118,7 @@ type ObservabilityActions = {
   setAlerts: (alerts: Alert[] | ((prev: Alert[]) => Alert[])) => void
   setAgents: (agents: AgentState[]) => void
   selectTrace: (id: string | null) => void
+  selectRequest: (id: string | null) => void
   selectAgent: (id: string | null) => void
   selectEvent: (id: string | null) => void
   clearSelectedEvent: () => void
@@ -111,6 +134,13 @@ type ObservabilityActions = {
   setReplay: (partial: Partial<ReplayState>) => void
   resetReplay: () => void
   setExportOptions: (opts: ExportOptions) => void
+  upsertRunHistoryFromApiResponse: (payload: {
+    trace_id: string
+    task: string
+    status: 'completed' | 'failed'
+    steps?: Array<Record<string, unknown>>
+    final_output?: unknown
+  }) => void
 }
 
 export type ObservabilityStore = ObservabilityState & ObservabilityActions
@@ -343,6 +373,7 @@ const baseState: ObservabilityState = {
   anomalyEvents: [],
   insightEvents: [],
   selectedTraceId: null,
+  selectedRequestId: null,
   selectedAgentId: null,
   selectedEventId: null,
   mode: 'LIVE',
@@ -359,6 +390,119 @@ const baseState: ObservabilityState = {
   exportOptions: {
     format: 'PNG',
   },
+  runHistory: {},
+}
+
+const toStepStatus = (eventType: string): RunHistoryStep['status'] | null => {
+  if (eventType === 'AGENT_STEP_STARTED') return 'started'
+  if (eventType === 'AGENT_STEP_COMPLETED') return 'completed'
+  if (eventType === 'AGENT_STEP_FAILED') return 'failed'
+  if (eventType === 'AGENT_STEP_RETRY') return 'retry'
+  return null
+}
+
+const upsertRunHistoryFromEvent = (
+  runHistory: Record<string, RunHistoryEntry>,
+  normalized: ObservabilityEvent
+): Record<string, RunHistoryEntry> => {
+  const traceId = normalized.trace_id
+  const nowIso = String(normalized.timestamp)
+  const payload = normalized.payload as Record<string, unknown>
+  const eventType = normalized.event_type
+  const current = runHistory[traceId]
+  const nextEntry: RunHistoryEntry =
+    current ?? {
+      trace_id: traceId,
+      task: String(payload.task ?? ''),
+      status: 'running',
+      started_at: nowIso,
+      completed_at: null,
+      steps: [],
+      final_output: null,
+      degraded: false,
+      errors: [],
+    }
+
+  if (eventType === 'SWARM_STARTED') {
+    return {
+      ...runHistory,
+      [traceId]: {
+        ...nextEntry,
+        task: String(payload.task ?? nextEntry.task ?? ''),
+        status: 'running',
+        started_at: nextEntry.started_at || nowIso,
+      } as RunHistoryEntry,
+    }
+  }
+
+  if (eventType === 'SWARM_RESULT') {
+    const failedSteps = Number(payload.failed_steps ?? 0)
+    const status: RunHistoryEntry['status'] =
+      String(payload.status ?? '').toLowerCase() === 'failed' || failedSteps > 0
+        ? 'failed'
+        : 'completed'
+    return {
+      ...runHistory,
+      [traceId]: {
+        ...nextEntry,
+        status,
+        completed_at: nowIso,
+        degraded: Boolean(payload.degraded),
+        final_output: payload.output ?? nextEntry.final_output,
+        errors:
+          status === 'failed' && failedSteps > 0 && nextEntry.errors.length === 0
+            ? ['one_or_more_steps_failed']
+            : nextEntry.errors,
+        steps: nextEntry.steps,
+      } as RunHistoryEntry,
+    }
+  }
+
+  const stepStatus = toStepStatus(String(eventType))
+  if (stepStatus) {
+    const stepName = String(payload.step_name ?? '')
+    const errorText = typeof payload.error === 'string' ? payload.error : null
+    const step: RunHistoryStep = {
+      agent_id: normalized.agent_id ?? null,
+      step_name: stepName,
+      status: stepStatus,
+      timestamp: nowIso,
+      error: errorText,
+    }
+    return {
+      ...runHistory,
+      [traceId]: {
+        ...nextEntry,
+        steps: [...nextEntry.steps, step],
+        degraded: nextEntry.degraded || stepStatus === 'retry',
+        errors: errorText ? [...nextEntry.errors, errorText] : nextEntry.errors,
+      } as RunHistoryEntry,
+    }
+  }
+
+  if (eventType === 'SWARM_FAILED') {
+    return {
+      ...runHistory,
+      [traceId]: {
+        ...nextEntry,
+        status: 'failed',
+        completed_at: nowIso,
+      } as RunHistoryEntry,
+    }
+  }
+
+  if (eventType === 'SWARM_COMPLETED') {
+    return {
+      ...runHistory,
+      [traceId]: {
+        ...nextEntry,
+        status: nextEntry.status === 'failed' ? 'failed' : 'completed',
+        completed_at: nowIso,
+      } as RunHistoryEntry,
+    }
+  }
+
+  return runHistory
 }
 
 storeState = {
@@ -409,6 +553,7 @@ storeState = {
         decisionEvents,
         anomalyEvents,
         insightEvents,
+        runHistory: upsertRunHistoryFromEvent(current.runHistory, normalized),
       }
 
       return evictOldestTraces(evictOldestEvents(nextState))
@@ -462,6 +607,7 @@ storeState = {
           decisionEvents,
           anomalyEvents,
           insightEvents,
+          runHistory: upsertRunHistoryFromEvent(next.runHistory, normalized),
         }
       }
 
@@ -496,6 +642,9 @@ storeState = {
   },
   selectTrace: (id) => {
     setState((current) => ({ ...current, selectedTraceId: id }))
+  },
+  selectRequest: (id) => {
+    setState((current) => ({ ...current, selectedRequestId: id }))
   },
   selectAgent: (id) => {
     setState((current) => ({ ...current, selectedAgentId: id }))
@@ -580,6 +729,43 @@ storeState = {
       ...current,
       exportOptions: opts,
     }))
+  },
+  upsertRunHistoryFromApiResponse: (payload) => {
+    setState((current) => {
+      const traceId = String(payload.trace_id ?? '')
+      if (!traceId) return current
+      const nowIso = new Date().toISOString()
+      const existing = current.runHistory[traceId]
+      const steps = Array.isArray(payload.steps)
+        ? payload.steps.map((step) => ({
+            agent_id: String(step.agent_id ?? ''),
+            step_name: String(step.step_name ?? ''),
+            status:
+              String(step.status ?? '').toLowerCase() === 'failed'
+                ? ('failed' as const)
+                : ('completed' as const),
+            timestamp: String(step.completed_at ?? step.started_at ?? nowIso),
+            error: typeof step.error === 'string' ? step.error : null,
+          }))
+        : existing?.steps ?? []
+      return {
+        ...current,
+        runHistory: {
+          ...current.runHistory,
+          [traceId]: {
+            trace_id: traceId,
+            task: payload.task,
+            status: payload.status === 'failed' ? 'failed' : 'completed',
+            started_at: existing?.started_at ?? nowIso,
+            completed_at: nowIso,
+            steps,
+            final_output: payload.final_output ?? existing?.final_output ?? null,
+            degraded: existing?.degraded ?? false,
+            errors: existing?.errors ?? [],
+          },
+        },
+      }
+    })
   },
 }
 

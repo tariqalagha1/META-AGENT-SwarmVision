@@ -34,6 +34,8 @@ function VirtualizedRow({ index, style, data }: ListChildComponentProps<Timeline
 
 export function ExecutionTimelinePanel({ disconnected }: ExecutionTimelinePanelProps) {
   const selectedTraceId = useObservabilityStore((s) => s.selectedTraceId)
+  const selectTrace = useObservabilityStore((s) => s.selectTrace)
+  const selectRequest = useObservabilityStore((s) => s.selectRequest)
   const streamMode = useObservabilityStore((s) => s.mode)
   const selectEvent = useObservabilityStore((s) => s.selectEvent)
   const isPaused = streamMode === 'PAUSED'
@@ -55,9 +57,18 @@ export function ExecutionTimelinePanel({ disconnected }: ExecutionTimelinePanelP
     return {
       eventIds,
       eventById,
-      onSelectEvent: selectEvent,
+      onSelectEvent: (eventId: string) => {
+        selectEvent(eventId)
+        const event = eventById.get(eventId)
+        if (!event) return
+        const traceId = event.trace_id ?? selectedTraceId ?? null
+        if (traceId) {
+          selectTrace(traceId)
+          selectRequest(traceId)
+        }
+      },
     }
-  }, [selectEvent, timelineEvents])
+  }, [selectEvent, selectRequest, selectTrace, selectedTraceId, timelineEvents])
 
   if (!selectedTraceId) {
     return (
@@ -112,7 +123,7 @@ export function ExecutionTimelinePanel({ disconnected }: ExecutionTimelinePanelP
             {timelineEvents.map((event) => {
               const eventId = event.event_id ?? event.id
               return (
-                <TimelineEventRow key={eventId} event={event} onSelectEvent={selectEvent} />
+                <TimelineEventRow key={eventId} event={event} onSelectEvent={rowData.onSelectEvent} />
               )
             })}
           </>

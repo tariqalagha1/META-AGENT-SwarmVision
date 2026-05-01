@@ -118,6 +118,31 @@ body {
   color: #E24B4A;
 }
 
+.app-runbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 1.4rem;
+  border-bottom: 1px solid var(--ov-border);
+}
+
+.app-runbar-input {
+  flex: 1;
+  min-width: 220px;
+  height: 36px;
+  border: 1px solid var(--ov-border);
+  border-radius: 8px;
+  background: var(--ov-bg);
+  color: var(--ov-text-primary);
+  padding: 0 0.65rem;
+  font-size: 0.84rem;
+}
+
+.app-runbar-error {
+  color: #F7C1C1;
+  font-size: 0.78rem;
+}
+
 .app-disconnect-banner {
   margin: 0.7rem 1.4rem 0;
   border: 1px solid #E24B4A;
@@ -142,12 +167,12 @@ body {
 
 .app-main-right-stack {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
   gap: 0.75rem;
 }
 
 .app-main-graph {
-  min-height: 640px;
+  min-height: calc(100vh - 180px);
 }
 
 @media (max-width: 900px) {
