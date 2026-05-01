@@ -68,6 +68,7 @@ from app.schemas.observability import (
     TracePathResponse,
 )
 from app.websocket.manager import WebSocketManager
+from app.api.v1.scrape import router as scrape_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -315,6 +316,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(scrape_router)
 
 
 @app.middleware("http")
