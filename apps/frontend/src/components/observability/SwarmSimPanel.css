@@ -1,0 +1,256 @@
+.swarm-sim-panel {
+  background: #04060E;
+  border: 1px solid #0A2A60;
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.swarm-sim-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 14px;
+  background: #060A16;
+  border-bottom: 1px solid #0A2A60;
+  flex-wrap: wrap;
+}
+
+.swarm-sim-toggle {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swarm-sim-chevron {
+  font-size: 8px;
+  color: #1A4080;
+  transition: transform 0.15s;
+}
+
+.swarm-sim-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #00CFFF;
+  letter-spacing: 0.15em;
+}
+
+.swarm-sim-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8px;
+  color: #44FF88;
+  letter-spacing: 0.1em;
+}
+
+.swarm-sim-live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #44FF88;
+  animation: swarm-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes swarm-blink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px #44FF88; }
+  50%       { opacity: 0.25; box-shadow: none; }
+}
+
+.swarm-sim-counters {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+}
+
+.swarm-sim-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.stat-label {
+  font-size: 7px;
+  color: #1A3050;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stat-val {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stat-val.cyan  { color: #00FFEE; }
+.stat-val.green { color: #44FF88; }
+.stat-val.red   { color: #FF4466; }
+.stat-val.gold  { color: #FFD700; }
+
+.swarm-sim-speed-group {
+  display: flex;
+  gap: 3px;
+}
+
+.swarm-sim-spd {
+  all: unset;
+  cursor: pointer;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-family: 'Courier New', Courier, monospace;
+  color: #3060A0;
+  border: 1px solid #0A2A50;
+  border-radius: 3px;
+  background: #04080F;
+  transition: all 0.12s;
+}
+
+.swarm-sim-spd:hover  { color: #00CFFF; border-color: #1A4080; }
+.swarm-sim-spd.active { color: #00FFEE; border-color: #00AACC; background: #001A28; }
+
+.swarm-sim-body {
+  display: flex;
+  background: #04060E;
+}
+
+.swarm-sim-canvas-wrap {
+  flex: 1;
+  min-width: 0;
+  line-height: 0;
+}
+
+.swarm-sim-canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* ── Sidebar (agent card + log) ─────────────────── */
+
+.swarm-sim-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: #02050C;
+  border-left: 1px solid #0A1E40;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Agent detail card */
+.swarm-sim-agent-card {
+  padding: 8px;
+  border-bottom: 1px solid #0A1E40;
+  flex-shrink: 0;
+}
+
+.agent-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-left: 2px solid;
+  padding-left: 6px;
+  margin-bottom: 6px;
+}
+
+.agent-card-id {
+  font-size: 9px;
+  font-weight: 700;
+  color: #A0D0FF;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 110px;
+}
+
+.agent-card-state {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+.agent-card-state.state-active   { color: #44FF88; background: #00200E; }
+.agent-card-state.state-degraded { color: #FFAA00; background: #201000; }
+.agent-card-state.state-failed   { color: #FF4466; background: #200010; }
+.agent-card-state.state-idle     { color: #4080A0; background: #08101A; }
+
+.agent-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid #060E1A;
+  gap: 4px;
+}
+.agent-card-row span:first-child {
+  color: #1A3858;
+  font-size: 7px;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+.agent-card-row span:last-child {
+  color: #6AAAD0;
+  font-family: 'Courier New', Courier, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  max-width: 110px;
+}
+
+.swarm-sim-hint {
+  padding: 10px 10px 6px;
+  font-size: 8px;
+  color: #1A3050;
+  letter-spacing: 0.05em;
+  text-align: center;
+  border-bottom: 1px solid #080F1C;
+}
+
+/* Event log */
+.swarm-sim-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+  min-height: 0;
+}
+
+.swarm-sim-log-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-bottom: 1px solid #06101E;
+  font-size: 9px;
+  color: #304870;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.swarm-sim-log-row:first-child { color: #80B0D0; }
+
+.swarm-sim-log-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.swarm-sim-log-msg {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.swarm-sim-log-ts {
+  color: #142030;
+  font-size: 8px;
+  flex-shrink: 0;
+}

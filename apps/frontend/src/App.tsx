@@ -17,6 +17,7 @@ import { RunIntelligenceStrip } from './components/observability/RunIntelligence
 import { ExecutionNarrative } from './components/observability/ExecutionNarrative'
 import { FailureCauseCard } from './components/observability/FailureCauseCard'
 import { IntelligenceDataPanel } from './components/observability/IntelligenceDataPanel'
+import { SwarmSimPanel } from './components/observability/SwarmSimPanel'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8012/ws/events'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? WS_URL.replace(/^ws/i, 'http').replace(/\/(ws\/events|events|metrics|alerts|agents)$/, '')
@@ -298,6 +299,7 @@ export default function App() {
         </section>
       </main>
 
+      <SwarmSimPanel />
       <MetaInsightsPanel />
 
       <EventDetailsDrawer />
