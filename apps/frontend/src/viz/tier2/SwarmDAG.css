@@ -1,0 +1,140 @@
+.swarm-dag-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  background: #0a0a1a;
+  font-family: 'Courier New', Courier, monospace;
+  position: relative;
+  overflow: hidden;
+}
+
+.swarm-dag-canvas {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+}
+
+/* Override ReactFlow background */
+.swarm-dag-canvas .react-flow {
+  flex: 1;
+  background: #0a0a1a;
+}
+
+.swarm-dag-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: #060612;
+  border-bottom: 1px solid #00f5ff22;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.swarm-dag-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #00f5ff;
+  text-shadow: 0 0 8px #00f5ff88;
+}
+
+.swarm-dag-toggle {
+  all: unset;
+  cursor: pointer;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #304860;
+  border: 1px solid #304860;
+  border-radius: 3px;
+  padding: 3px 10px;
+  transition: all 0.15s;
+}
+
+.swarm-dag-toggle:hover {
+  color: #00f5ff;
+  border-color: #00f5ff66;
+}
+
+/* Sidebar */
+.swarm-dag-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: #060612;
+  border-left: 1px solid #00f5ff22;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.swarm-dag-sidebar-section {
+  padding: 12px;
+  border-bottom: 1px solid #0a1a2a;
+  flex-shrink: 0;
+}
+
+.swarm-dag-sidebar-title {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #1a3050;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.swarm-dag-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 3px 0;
+}
+
+.swarm-dag-stat-label {
+  font-size: 7px;
+  color: #1a3050;
+  letter-spacing: 0.08em;
+}
+
+.swarm-dag-stat-val {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Log */
+.swarm-dag-log {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.swarm-dag-log-entry {
+  padding: 2px 0;
+  transition: opacity 0.4s;
+}
+
+.swarm-dag-log-msg {
+  font-size: 8px;
+  color: #4a7090;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* Animated edge particles — CSS keyframe trick */
+@keyframes flow-dot {
+  from { stroke-dashoffset: 24; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.react-flow__edge-path {
+  stroke-dasharray: 6 18;
+  animation: flow-dot 1.2s linear infinite;
+}

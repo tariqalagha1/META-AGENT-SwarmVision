@@ -12,11 +12,19 @@ services:
       - META_DISPATCH_SEMAPHORE_SIZE=16
       - META_SHARED_SECRET=${META_SHARED_SECRET}
       - NEO4J_URI=${NEO4J_URI:-bolt://neo4j:7687}
-      - NEO4J_USERNAME=${NEO4J_USER:-neo4j}
+      - NEO4J_USERNAME=${NEO4J_USERNAME:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8012/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     depends_on:
-      - neo4j
-      - meta-agent
+      neo4j:
+        condition: service_healthy
+      meta-agent:
+        condition: service_started
 
   meta-agent:
     build: ./services/meta-agent
@@ -41,7 +49,13 @@ services:
   neo4j:
     image: neo4j:5.26
     environment:
-      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD}
+      - NEO4J_AUTH=${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD}
     expose:
       - '7474'
       - '7687'
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s

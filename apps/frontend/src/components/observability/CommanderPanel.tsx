@@ -260,7 +260,7 @@ export function CommanderPanel(): JSX.Element {
           m.current=Math.min(m.target,m.current+1)
           if(m.current>=m.target&&!m.complete){
             m.complete=true
-            cmd.xp+=m.xpReward
+            cmd.xp=Math.max(0,cmd.xp+m.xpReward)
             cmd.sessionXp+=m.xpReward
             cmd.level=Math.floor(cmd.xp/XP_PER_LEVEL)+1
             setTimeout(()=>{ m.current=0; m.complete=false },2000)
@@ -298,7 +298,7 @@ export function CommanderPanel(): JSX.Element {
         uptimeMission.current=Math.min(uptimeMission.target,elapsed)
         if(uptimeMission.current>=uptimeMission.target&&!uptimeMission.complete){
           uptimeMission.complete=true
-          cmd.xp+=uptimeMission.xpReward
+          cmd.xp=Math.max(0,cmd.xp+uptimeMission.xpReward)
           cmd.sessionXp+=uptimeMission.xpReward
           cmd.level=Math.floor(cmd.xp/XP_PER_LEVEL)+1
           setTimeout(()=>{ uptimeMission.current=0; uptimeMission.complete=false },2000)

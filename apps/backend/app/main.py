@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from collections import deque
 import logging
+import os
 from time import perf_counter
 import asyncio
 from uuid import uuid4
@@ -314,9 +315,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -793,4 +795,4 @@ register_runtime_event_emitter(_emit_runtime_to_pipeline)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8012, reload=True)

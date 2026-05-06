@@ -20,6 +20,10 @@ import { IntelligenceDataPanel } from './components/observability/IntelligenceDa
 import { SwarmSimPanel } from './components/observability/SwarmSimPanel'
 import { CommanderPanel } from './components/observability/CommanderPanel'
 import { AgentEcosystemPanel } from './components/observability/AgentEcosystemPanel'
+import { useVizStore } from './viz/useVizStore'
+import { VizToggle } from './viz/VizToggle'
+import SwarmDAG from './viz/tier2/SwarmDAG'
+import PixelSim from './viz/tier3/PixelSim'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8012/ws/events'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? WS_URL.replace(/^ws/i, 'http').replace(/\/(ws\/events|events|metrics|alerts|agents)$/, '')
@@ -32,6 +36,19 @@ const getChannelUrl = (base: string, channel: 'events' | 'metrics' | 'alerts' | 
     return base.replace('/events', `/${channel}`)
   }
   return `${base.replace(/\/$/, '')}/${channel}`
+}
+
+function VizLayerSection() {
+  const activeView = useVizStore((s) => s.activeView)
+  return (
+    <>
+      <VizToggle />
+      <div style={{ width: '100%', height: '600px', position: 'relative', marginTop: '24px' }}>
+        {activeView === 'ops'  && <SwarmDAG />}
+        {activeView === 'demo' && <PixelSim />}
+      </div>
+    </>
+  )
 }
 
 export default function App() {
@@ -312,6 +329,8 @@ export default function App() {
       <CommanderPanel />
       <SwarmSimPanel />
       <MetaInsightsPanel />
+
+      <VizLayerSection />
 
       <EventDetailsDrawer />
 

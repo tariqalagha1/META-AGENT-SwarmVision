@@ -1,0 +1,38 @@
+.viz-toggle {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 100;
+  display: flex;
+  gap: 4px;
+  background: rgba(6, 6, 18, 0.92);
+  border: 1px solid #00f5ff44;
+  border-radius: 4px;
+  padding: 4px;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.viz-toggle-btn {
+  all: unset;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 5px 12px;
+  border-radius: 3px;
+  color: #4a6a80;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+}
+
+.viz-toggle-btn:hover {
+  color: #00f5ff;
+  border-color: #00f5ff44;
+}
+
+.viz-toggle-btn.active {
+  background: #00f5ff18;
+  color: #00f5ff;
+  border-color: #00f5ff66;
+  text-shadow: 0 0 8px #00f5ff;
+}
