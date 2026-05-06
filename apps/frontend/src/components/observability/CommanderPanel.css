@@ -317,3 +317,12 @@
 .cmd-feed-agent { font-size: 8px; color: #503C18; }
 .cmd-feed-xp    { font-size: 8px; font-weight: 700; }
 .cmd-feed-ts    { font-size: 7px; color: #2A1E08; }
+.cmd-feed-entry-clickable {
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.cmd-feed-entry-clickable:hover {
+  background: #1A1408;
+  border-color: #8A6200;
+  box-shadow: 0 0 6px rgba(255,184,0,0.15);
+}

@@ -73,6 +73,7 @@ from app.schemas.observability import (
 from app.websocket.manager import WebSocketManager
 from app.api.v1.scrape import router as scrape_router
 from app.api.v1.swarm import router as swarm_router
+from app.routers.agent_registry import router as agent_registry_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -323,6 +324,7 @@ app.add_middleware(
 
 app.include_router(scrape_router)
 app.include_router(swarm_router)
+app.include_router(agent_registry_router)
 
 
 @app.middleware("http")

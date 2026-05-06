@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useObservabilityStore } from '../../store'
 import type { AgentState } from '../../store'
+import { RoomDrillDown } from './RoomDrillDown'
 import './SwarmSimPanel.css'
 
 // ─── Canvas constants ─────────────────────────────────────────────────────────
@@ -578,6 +579,8 @@ export function SwarmSimPanel(): JSX.Element {
     lastEvId:    '',
     // selected agent for click-through
     selected:    null as string|null,
+    // hovered zone for drill-down hint
+    hoveredRoom: null as string|null,
   })
 
   const [speed,      setSpeed]      = useState<1|2|5>(1)
@@ -585,6 +588,7 @@ export function SwarmSimPanel(): JSX.Element {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [collapsed,  setCollapsed]  = useState(false)
   const [selectedId, setSelectedId] = useState<string|null>(null)
+  const [activeRoom, setActiveRoom] = useState<string|null>(null)
 
   // Zustand selectors
   const events      = useObservabilityStore(s=>s.events)
@@ -635,7 +639,11 @@ export function SwarmSimPanel(): JSX.Element {
       const traceId=String(ev.trace_id??'')
       const stepIdx=Number(ev.step_index??0)
       const latMs=Number(ev.latency_ms??0)
-      const zoneId=EVT_ZONE[evType]
+      const rawZoneId=EVT_ZONE[evType]
+      // Distribute AGENT_SPAWN across all zones to avoid INTAKE overcrowding
+      const zoneId=evType==='AGENT_SPAWN'
+        ? ZONES[s.agentIdx%ZONES.length].id
+        : rawZoneId
 
       // Counters
       s.counters.processed++
@@ -763,6 +771,53 @@ export function SwarmSimPanel(): JSX.Element {
   // ── Speed sync ─────────────────────────────────────────────────────────────
   useEffect(()=>{ sim.current.speed=speed },[speed])
 
+  // ── Zone click + hover — drill-down ───────────────────────────────────────
+  useEffect(()=>{
+    const canvas=canvasRef.current; if(!canvas) return
+    const s=sim.current
+
+    const handleZoneClick=(e: MouseEvent)=>{
+      const rect=canvas.getBoundingClientRect()
+      const scaleX=W/rect.width, scaleY=H/rect.height
+      const cx=(e.clientX-rect.left)*scaleX
+      const cy=(e.clientY-rect.top)*scaleY
+      // Check agent first — agent clicks are handled by the React handler
+      for(const a of s.agents.values()){
+        const dx=a.px-cx, dy=a.py-cy
+        if(dx*dx+dy*dy<144) return   // inside 12px radius: let agent handler win
+      }
+      for(const zone of ZONES){
+        const rx=zone.x*TILE, ry=zone.y*TILE
+        if(cx>=rx&&cx<=rx+zone.w*TILE&&cy>=ry&&cy<=ry+zone.h*TILE){
+          setActiveRoom(zone.id)
+          break
+        }
+      }
+    }
+
+    const handleMouseMove=(e: MouseEvent)=>{
+      const rect=canvas.getBoundingClientRect()
+      const scaleX=W/rect.width, scaleY=H/rect.height
+      const cx=(e.clientX-rect.left)*scaleX
+      const cy=(e.clientY-rect.top)*scaleY
+      let found=false
+      for(const zone of ZONES){
+        const rx=zone.x*TILE, ry=zone.y*TILE
+        if(cx>=rx&&cx<=rx+zone.w*TILE&&cy>=ry&&cy<=ry+zone.h*TILE){
+          s.hoveredRoom=zone.id; found=true; break
+        }
+      }
+      if(!found) s.hoveredRoom=null
+    }
+
+    canvas.addEventListener('click', handleZoneClick)
+    canvas.addEventListener('mousemove', handleMouseMove)
+    return ()=>{
+      canvas.removeEventListener('click', handleZoneClick)
+      canvas.removeEventListener('mousemove', handleMouseMove)
+    }
+  },[])
+
   // ── Canvas click — select agent ────────────────────────────────────────────
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>)=>{
     const canvas=canvasRef.current; if(!canvas) return
@@ -832,6 +887,16 @@ export function SwarmSimPanel(): JSX.Element {
       const za=s.zones.get(zone.id); if(!za) return
       za.glow=Math.max(0,za.glow-0.010*spd)
       drawZone(ctx,zone,za,zi,s.tick)
+      // Hover drill-down hint
+      if(s.hoveredRoom===zone.id){
+        ctx.fillStyle='rgba(255,255,255,0.04)'
+        ctx.fillRect(zone.x*TILE+1,zone.y*TILE+1,zone.w*TILE-2,zone.h*TILE-2)
+        ctx.font='bold 5px monospace'
+        ctx.fillStyle='rgba(255,255,255,0.55)'
+        ctx.textAlign='right'; ctx.textBaseline='alphabetic'
+        ctx.fillText('↗ OPEN',(zone.x+zone.w)*TILE-4,(zone.y+zone.h)*TILE-4)
+        ctx.textAlign='left'
+      }
     })
 
     // 7. Tokens
@@ -974,6 +1039,17 @@ export function SwarmSimPanel(): JSX.Element {
             </div>
           </div>
         </div>
+      )}
+      {activeRoom&&(
+        <RoomDrillDown
+          roomId={activeRoom}
+          onClose={()=>setActiveRoom(null)}
+          activeAgents={
+            [...sim.current.agents.values()]
+              .filter(a=>a.zone===activeRoom)
+              .map(a=>a.id)
+          }
+        />
       )}
     </section>
   )

@@ -1,6 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useObservabilityStore } from '../../store'
+import { RoomDrillDown } from './RoomDrillDown'
 import './CommanderPanel.css'
+
+const EVENT_TO_ROOM: Record<string, string> = {
+  AGENT_SPAWN: 'INTAKE',      TASK_START: 'FORGE',
+  PIPELINE_UPDATE: 'FORGE',   DECISION_POINT: 'QA_SCAN',
+  DECISION: 'QA_SCAN',        TASK_HANDOFF: 'ROUTER',
+  AGENT_MOVE: 'ROUTER',       META_INSIGHT: 'MEMORY',
+  TASK_SUCCESS: 'DISPATCH',   HEALTH_CHECK: 'AUDIT',
+  AGENT_TERMINATION: 'AUDIT', ANOMALY: 'HITL',
+  TASK_FAIL: 'HITL',
+}
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
@@ -183,10 +194,39 @@ export function CommanderPanel(): JSX.Element {
   const [collapsed,         setCollapsed]         = useState(false)
   const [inspectedAgentId,  setInspectedAgentId]  = useState<string|null>(null)
   const [flashAchievement,  setFlashAchievement]  = useState<Achievement|null>(null)
+  const [drillRoom,         setDrillRoom]         = useState<string|null>(null)
 
   const events      = useObservabilityStore(s=>s.events)
   const eventOrder  = useObservabilityStore(s=>s.eventOrder)
   const storeAgents = useObservabilityStore(s=>s.agents)
+
+  const derivedAgents = useMemo(()=>{
+    if(Object.keys(storeAgents).length>0) return storeAgents
+    const map: Record<string,{agent_id:string;state:string;last_seen:string;latency_avg:number;error_rate:number;throughput:number}> = {}
+    eventOrder.forEach(eid=>{
+      const ev=events[eid]
+      if(!ev) return
+      const agentId=(ev.agent_id??'') as string
+      if(!agentId||agentId==='system') return
+      const evRaw=ev as unknown as Record<string,unknown>
+      const evType=String(ev.event_type??evRaw['type']??'')
+      if(!map[agentId]){
+        map[agentId]={
+          agent_id:agentId,
+          state: evType==='TASK_FAIL'||evType==='ANOMALY'?'DEGRADED'
+               : evType==='AGENT_TERMINATION'?'FAILED'
+               : 'ACTIVE',
+          last_seen:(ev.timestamp??new Date().toISOString()) as string,
+          latency_avg:0,error_rate:0,throughput:0,
+        }
+      } else {
+        if(evType==='TASK_FAIL'||evType==='ANOMALY') map[agentId].state='DEGRADED'
+        else if(evType==='AGENT_TERMINATION') map[agentId].state='FAILED'
+        else if(evType==='AGENT_SPAWN'||evType==='TASK_SUCCESS') map[agentId].state='ACTIVE'
+      }
+    })
+    return map
+  },[storeAgents,eventOrder,events])
 
   // ── Event processing ──────────────────────────────────────────────────────
   useEffect(()=>{
@@ -283,7 +323,7 @@ export function CommanderPanel(): JSX.Element {
     return ()=>clearInterval(iv)
   },[])
 
-  const agentList = Object.values(storeAgents)
+  const agentList = Object.values(derivedAgents)
 
   return (
     <section className="cmd-panel" aria-label="Commander panel">
@@ -399,8 +439,8 @@ export function CommanderPanel(): JSX.Element {
               ))}
 
               {/* Inspector */}
-              {inspectedAgentId&&storeAgents[inspectedAgentId]&&(()=>{
-                const ag=storeAgents[inspectedAgentId]
+              {inspectedAgentId&&derivedAgents[inspectedAgentId]&&(()=>{
+                const ag=derivedAgents[inspectedAgentId]
                 return (
                   <div className="cmd-inspector">
                     <div className="cmd-inspector-header">
@@ -455,7 +495,12 @@ export function CommanderPanel(): JSX.Element {
           <div className="cmd-feed" role="log" aria-label="Live event feed">
             <span className="cmd-feed-label">LIVE FEED</span>
             {display.feed.map((entry,i)=>(
-              <div key={i} className="cmd-feed-entry">
+              <div
+                key={i}
+                className={`cmd-feed-entry${EVENT_TO_ROOM[entry.evType]?' cmd-feed-entry-clickable':''}`}
+                onClick={()=>{ const r=EVENT_TO_ROOM[entry.evType]; if(r) setDrillRoom(r) }}
+                title={EVENT_TO_ROOM[entry.evType]?`Open ${EVENT_TO_ROOM[entry.evType]} room`:undefined}
+              >
                 <span className="cmd-feed-dot" style={{background:entry.color}}/>
                 <span className="cmd-feed-type">{entry.evType}</span>
                 <span className="cmd-feed-agent">{entry.agentId.slice(0,10)}</span>
@@ -472,6 +517,10 @@ export function CommanderPanel(): JSX.Element {
             ))}
           </div>
         </>
+      )}
+
+      {drillRoom && (
+        <RoomDrillDown roomId={drillRoom} onClose={()=>setDrillRoom(null)} />
       )}
     </section>
   )

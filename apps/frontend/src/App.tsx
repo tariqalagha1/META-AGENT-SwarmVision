@@ -18,6 +18,8 @@ import { ExecutionNarrative } from './components/observability/ExecutionNarrativ
 import { FailureCauseCard } from './components/observability/FailureCauseCard'
 import { IntelligenceDataPanel } from './components/observability/IntelligenceDataPanel'
 import { SwarmSimPanel } from './components/observability/SwarmSimPanel'
+import { CommanderPanel } from './components/observability/CommanderPanel'
+import { AgentEcosystemPanel } from './components/observability/AgentEcosystemPanel'
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8012/ws/events'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? WS_URL.replace(/^ws/i, 'http').replace(/\/(ws\/events|events|metrics|alerts|agents)$/, '')
@@ -46,6 +48,7 @@ export default function App() {
   const [runPending, setRunPending] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [followLatest, setFollowLatest] = useState(true)
+  const [showEcosystem, setShowEcosystem] = useState(false)
 
   const streamMode = useObservabilityStore((s) => s.mode)
   const toggleMode = useObservabilityStore((s) => s.toggleMode)
@@ -236,6 +239,13 @@ export default function App() {
           <button type="button" className="app-action-btn" onClick={toggleMode}>
             {streamMode === 'LIVE' ? 'Pause visuals' : 'Resume visuals'}
           </button>
+          <button
+            type="button"
+            className="app-ecosystem-btn"
+            onClick={() => setShowEcosystem(e => !e)}
+          >
+            {showEcosystem ? '✕ CLOSE ECOSYSTEM' : '⬡ AGENT ECOSYSTEM'}
+          </button>
           <button type="button" className="app-action-btn" onClick={reconnectAll}>
             Reconnect
           </button>
@@ -299,10 +309,20 @@ export default function App() {
         </section>
       </main>
 
+      <CommanderPanel />
       <SwarmSimPanel />
       <MetaInsightsPanel />
 
       <EventDetailsDrawer />
+
+      {showEcosystem && (
+        <div className="app-ecosystem-overlay">
+          <AgentEcosystemPanel
+            apiBaseUrl={API_BASE_URL}
+            onClose={() => setShowEcosystem(false)}
+          />
+        </div>
+      )}
     </div>
   )
 }

@@ -175,6 +175,31 @@ body {
   min-height: calc(100vh - 180px);
 }
 
+.app-ecosystem-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #05040A;
+}
+
+.app-ecosystem-btn {
+  all: unset;
+  cursor: pointer;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 10px;
+  color: #8A6200;
+  border: 1px solid #2A1E08;
+  border-radius: 4px;
+  padding: 4px 10px;
+  letter-spacing: 0.1em;
+  transition: all 0.15s;
+}
+
+.app-ecosystem-btn:hover {
+  color: #FFB800;
+  border-color: #8A6200;
+}
+
 @media (max-width: 900px) {
   .app-shell-header {
     flex-direction: column;
