@@ -1,0 +1,54 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.4",
+	"Category": "",
+	"Description": "SwarmVision Cinematic — real-time AI agent visualization platform",
+	"Modules": [
+		{
+			"Name": "SwarmVisionCinematic",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "WebSockets",
+			"Enabled": true
+		},
+		{
+			"Name": "Json",
+			"Enabled": true
+		},
+		{
+			"Name": "JsonUtilities",
+			"Enabled": true
+		},
+		{
+			"Name": "PixelStreaming",
+			"Enabled": true
+		},
+		{
+			"Name": "MetaHuman",
+			"Enabled": true
+		},
+		{
+			"Name": "Niagara",
+			"Enabled": true
+		},
+		{
+			"Name": "CinematicCamera",
+			"Enabled": true
+		},
+		{
+			"Name": "ControlRig",
+			"Enabled": true
+		},
+		{
+			"Name": "UMG",
+			"Enabled": true
+		}
+	]
+}
