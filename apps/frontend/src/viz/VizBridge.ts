@@ -1,3 +1,5 @@
+import { adaptBackendEvent } from './adaptBackendEvent'
+
 export interface VizAgent {
   id: string
   name: string
@@ -17,7 +19,7 @@ export interface VizTask {
 }
 
 export interface VizEvent {
-  type: 'agent_move' | 'task_complete' | 'task_spawn' | 'hitl_trigger'
+  type: 'agent_move' | 'task_complete' | 'task_spawn' | 'hitl_trigger' | 'metrics_update' | 'decision'
   payload: Record<string, unknown>
 }
 
@@ -38,7 +40,7 @@ export const PIPELINE: Record<string, string[]> = {
   HITL:     [],
 }
 
-const AGENT_COLORS = ['#00f5ff', '#ff006e', '#ffbe0b', '#8338ec', '#06d6a0', '#ff4500']
+const AGENT_COLORS = ['#2dd4bf', '#f59e0b', '#10b981', '#6366f1', '#8b5cf6', '#ef4444']
 
 const MOCK_AGENT_NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot']
 
@@ -49,6 +51,8 @@ export class VizBridge {
   private mockInterval: ReturnType<typeof setInterval> | null = null
   private taskCounter = 0
   private mockAgents: VizAgent[] = []
+  private _ws: WebSocket | null = null
+  private _reconnectAttempts = 0
 
   subscribe(cb: Subscriber): void {
     this.subscribers.add(cb)
@@ -104,7 +108,7 @@ export class VizBridge {
         const taskId = `task-${this.taskCounter}`
         this.emit({
           type: 'task_spawn',
-          payload: { taskId, taskName: `Task #${this.taskCounter}`, zone: 'INTAKE', color: '#ffbe0b' },
+          payload: { taskId, taskName: `Task #${this.taskCounter}`, zone: 'INTAKE', color: '#f59e0b' },
         })
 
       } else if (roll < 0.88) {
@@ -115,7 +119,7 @@ export class VizBridge {
             taskId: `task-${Math.max(1, this.taskCounter - Math.floor(Math.random() * 3))}`,
             fromZone: 'DISPATCH',
             burst: true,
-            color: '#06d6a0',
+            color: '#10b981',
           },
         })
 
@@ -136,9 +140,81 @@ export class VizBridge {
     }
   }
 
-  // Stub — swap mock for real WS in a future phase
-  connectWS(_url: string): void {
-    // TODO: open WebSocket, parse messages, emit VizEvents
+  private _metricsWs: WebSocket | null = null
+
+  connectMetricsWS(url: string): void {
+    if (this._metricsWs) {
+      this._metricsWs.onclose = null
+      this._metricsWs.close()
+      this._metricsWs = null
+    }
+    const ws = new WebSocket(url)
+    this._metricsWs = ws
+    ws.onmessage = (msg) => {
+      try {
+        const raw: unknown = JSON.parse(msg.data)
+        const event = adaptBackendEvent(raw)
+        if (event) this.emit(event)
+      } catch { /* ignore parse errors on metrics channel */ }
+    }
+    ws.onclose = () => {
+      setTimeout(() => this.connectMetricsWS(url), 3000)
+    }
+  }
+
+  disconnectMetricsWS(): void {
+    if (this._metricsWs) {
+      this._metricsWs.onclose = null
+      this._metricsWs.close()
+      this._metricsWs = null
+    }
+  }
+
+  connectWS(url: string): void {
+    this.stopMock()
+
+    const connect = () => {
+      const ws = new WebSocket(url)
+      this._ws = ws
+
+      ws.onopen = () => {
+        console.log('[VizBridge] WS connected:', url)
+        this._reconnectAttempts = 0
+      }
+
+      ws.onmessage = (msg) => {
+        try {
+          const raw: unknown = JSON.parse(msg.data)
+          const event = adaptBackendEvent(raw)
+          if (event) this.emit(event)
+        } catch (e) {
+          console.warn('[VizBridge] parse error:', e)
+        }
+      }
+
+      ws.onerror = (err) => {
+        console.warn('[VizBridge] WS error:', err)
+      }
+
+      ws.onclose = () => {
+        console.warn('[VizBridge] WS closed — reconnecting...')
+        const delay = Math.min(1000 * Math.pow(1.5, this._reconnectAttempts), 30000)
+        this._reconnectAttempts++
+        setTimeout(connect, delay)
+      }
+    }
+
+    connect()
+  }
+
+  disconnectWS(): void {
+    if (this._ws) {
+      this._ws.onclose = null
+      this._ws.close()
+      this._ws = null
+    }
+    this.disconnectMetricsWS()
+    this._reconnectAttempts = 0
   }
 
   getMockAgents(): VizAgent[] {

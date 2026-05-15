@@ -43,7 +43,7 @@ function VizLayerSection() {
   return (
     <>
       <VizToggle />
-      <div style={{ width: '100%', height: '600px', position: 'relative', marginTop: '24px' }}>
+      <div style={{ width: '100%', height: '700px', position: 'relative', marginTop: '24px' }}>
         {activeView === 'ops'  && <SwarmDAG />}
         {activeView === 'demo' && <PixelSim />}
       </div>

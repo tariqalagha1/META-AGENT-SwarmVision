@@ -1,0 +1,207 @@
+version: "3.9"
+
+# ─── SwarmVision Production Stack ─────────────────────────────────────────────
+#
+# Services:
+#   ue5-gpu         — UE5 Pixel Streaming node (GPU instance required)
+#   signaling       — Epic Games Pixel Streaming signaling server
+#   sfu             — TURN/SFU proxy (coturn)
+#   event-relay     — Node.js WebSocket relay service (event-relay-service)
+#   replay-service  — Node.js replay / timeline / analytics service
+#   auth-gateway    — JWT token issuer / JWKS endpoint
+#   metrics         — Prometheus + Grafana metrics stack
+#   nginx           — TLS termination + path routing
+
+networks:
+  swarmvision:
+    driver: bridge
+
+volumes:
+  replay-data:
+  prometheus-data:
+  grafana-data:
+  coturn-data:
+
+services:
+
+  # ── UE5 Pixel Streaming node ────────────────────────────────────────────────
+  ue5-gpu:
+    image: ${UE5_IMAGE:-swarmvision/ue5-pixelstreaming:latest}
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - DISPLAY=:0
+      - UE5_PIXEL_STREAMING_IP=0.0.0.0
+      - UE5_PIXEL_STREAMING_PORT=8888
+      - UE5_SIGNALING_SERVER=ws://signaling:8888
+      - RELAY_SERVICE_URL=ws://event-relay:3001
+      - REPLAY_SERVICE_URL=http://replay-service:3002
+      - JWT_SECRET=${JWT_SECRET}
+    ports:
+      - "8888:8888"   # Pixel Streaming WebRTC
+    networks: [swarmvision]
+    depends_on: [signaling, event-relay]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Pixel Streaming signaling server ────────────────────────────────────────
+  signaling:
+    image: ghcr.io/epicgames/pixel-streaming-signaling-server:5.4
+    environment:
+      - PublicIp=${PUBLIC_IP:-127.0.0.1}
+      - StreamerPort=8888
+      - PlayerPort=80
+      - SFUPort=8889
+      - UseMatchmaker=false
+    ports:
+      - "80:80"
+      - "8889:8889"
+    networks: [swarmvision]
+    restart: unless-stopped
+
+  # ── coturn TURN/STUN ─────────────────────────────────────────────────────────
+  sfu:
+    image: coturn/coturn:latest
+    volumes:
+      - coturn-data:/var/lib/coturn
+      - ./coturn.conf:/etc/coturn/turnserver.conf:ro
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"   # TLS
+      - "5349:5349/udp"
+      - "49152-49200:49152-49200/udp"  # SRTP relay range
+    networks: [swarmvision]
+    restart: unless-stopped
+
+  # ── event-relay service ───────────────────────────────────────────────────────
+  event-relay:
+    image: ${RELAY_IMAGE:-swarmvision/event-relay:latest}
+    environment:
+      - PORT=3001
+      - REPLAY_INGEST_URL=http://replay-service:3002/ingest
+      - INTERNAL_KEY=${INTERNAL_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=production
+    ports:
+      - "3001:3001"
+    networks: [swarmvision]
+    depends_on: [replay-service]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── replay service ────────────────────────────────────────────────────────────
+  replay-service:
+    image: ${REPLAY_IMAGE:-swarmvision/replay-service:latest}
+    environment:
+      - PORT=3002
+      - REPLAY_DB_PATH=/data/replay.db
+      - JWT_SECRET=${JWT_SECRET}
+      - INTERNAL_KEY=${INTERNAL_KEY}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - NODE_ENV=production
+    volumes:
+      - replay-data:/data
+    ports:
+      - "3002:3002"
+    networks: [swarmvision]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── auth gateway ──────────────────────────────────────────────────────────────
+  auth-gateway:
+    image: ${AUTH_IMAGE:-swarmvision/auth-gateway:latest}
+    environment:
+      - PORT=4000
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - NODE_ENV=production
+    ports:
+      - "4000:4000"
+    networks: [swarmvision]
+    restart: unless-stopped
+
+  # ── Prometheus ────────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks: [swarmvision]
+    restart: unless-stopped
+
+  # ── Grafana ───────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-swarmvision}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks: [swarmvision]
+    depends_on: [prometheus]
+    restart: unless-stopped
+
+  # ── intelligence service ──────────────────────────────────────────────────────
+  intelligence-service:
+    image: ${INTEL_IMAGE:-swarmvision/intelligence-service:latest}
+    environment:
+      - PORT=3004
+      - MEMORY_DB_PATH=/data/memory.db
+      - RELAY_WS_URL=ws://event-relay:3001
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_DISABLED=false
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - NODE_ENV=production
+    volumes:
+      - replay-data:/data   # shares volume — memory.db alongside replay.db
+    ports:
+      - "3004:3004"
+    networks: [swarmvision]
+    depends_on: [event-relay, replay-service]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── nginx TLS termination + routing ──────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "443:443"
+      - "8080:8080"   # non-TLS fallback for dev
+    networks: [swarmvision]
+    depends_on:
+      - signaling
+      - replay-service
+      - auth-gateway
+    restart: unless-stopped

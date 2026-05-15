@@ -43,6 +43,28 @@ public:
     UFUNCTION(BlueprintCallable, CallInEditor, Category="SwarmTest")
     void PrintAgentStates();
 
+    // ── Phase 2 scenario buttons ─────────────────────────────────────────────
+
+    // Clean success path — no retries, quality=95
+    UFUNCTION(BlueprintCallable, CallInEditor, Category="SwarmTest|Phase2")
+    void RunScenario_CleanSuccess();
+
+    // Hard fail — quality_agent fails, swarm aborts
+    UFUNCTION(BlueprintCallable, CallInEditor, Category="SwarmTest|Phase2")
+    void RunScenario_HardFail();
+
+    // Triple retry loop — quality fails 3 times then passes at score=82
+    UFUNCTION(BlueprintCallable, CallInEditor, Category="SwarmTest|Phase2")
+    void RunScenario_RetryLoop();
+
+    // Anomaly injection — mid-swarm anomaly, partial recovery
+    UFUNCTION(BlueprintCallable, CallInEditor, Category="SwarmTest|Phase2")
+    void RunScenario_Anomaly();
+
+    // Idle walkthrough — agents spawn, idle 10s, no work (tests zone Idle lighting)
+    UFUNCTION(BlueprintCallable, CallInEditor, Category="SwarmTest|Phase2")
+    void RunScenario_Idle();
+
     // ── Config ────────────────────────────────────────────────────────────────
 
     // How long between demo sequence events (seconds, compressed for testing)

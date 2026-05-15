@@ -28,7 +28,7 @@ public class SwarmVisionCinematic : ModuleRules
 			"Slate",
 			"SlateCore",
 
-			// CineCameraActor, CineCameraComponent
+			// CineCameraActor, CineCameraComponent, focal length / aperture API
 			"CinematicCamera",
 
 			// Niagara particle systems
@@ -36,11 +36,48 @@ public class SwarmVisionCinematic : ModuleRules
 
 			// Pixel Streaming data channel
 			"PixelStreaming",
+
+			// MetaHuman body + face skeletal mesh animation
+			"AnimGraphRuntime",
+
+			// Control Rig — IK, procedural joint control
+			"ControlRig",
+			"RigVM",
+
+			// Post-process volume settings (UPostProcessComponent)
+			"RenderCore",
+
+			// Groom (hair) component — soft dependency, guarded in code
+			// "HairStrandsCore", // Uncomment if Groom plugin is present
+
+			// Level Sequences for cinematic playback
+			"LevelSequence",
+			"MovieScene",
+
+			// HTTP client — intelligence-service REST polling
+			"HTTP",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"HTTP",
+			// HTTP moved to public — USwarmIntelligenceSubsystem polls intelligence-service
+
+
+			// Spline components — USplineComponent, USplineMeshComponent
+			"ProceduralMeshComponent",
+
+			// KismetMaterialLibrary for MPC writes
+			"Engine",
+
+			// AIModule for placeholder agent movement
+			"AIModule",
+			"NavigationSystem",
+
+			// ExponentialHeightFog component access
+			"Renderer",
+
+			// Camera tracking focus — ECameraFocusMethod
+			"CinematicCamera",
 		});
 
 		// Suppress warning C4668 from Windows SDK headers

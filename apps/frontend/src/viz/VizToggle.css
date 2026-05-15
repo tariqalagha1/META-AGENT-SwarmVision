@@ -1,38 +1,59 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
 .viz-toggle {
   position: fixed;
   top: 12px;
   right: 16px;
   z-index: 100;
   display: flex;
+  flex-direction: column;
   gap: 4px;
-  background: rgba(6, 6, 18, 0.92);
-  border: 1px solid #00f5ff44;
+  background: rgba(8, 12, 20, 0.96);
+  border: 1px solid #1e2d3d;
   border-radius: 4px;
   padding: 4px;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  backdrop-filter: blur(8px);
+}
+
+.viz-toggle-row {
+  display: flex;
+  gap: 4px;
 }
 
 .viz-toggle-btn {
   all: unset;
   cursor: pointer;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.12em;
   padding: 5px 12px;
   border-radius: 3px;
-  color: #4a6a80;
+  color: #64748b;
   border: 1px solid transparent;
-  transition: all 0.15s;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
 .viz-toggle-btn:hover {
-  color: #00f5ff;
-  border-color: #00f5ff44;
+  color: #2dd4bf;
+  border-color: rgba(45, 212, 191, 0.3);
 }
 
 .viz-toggle-btn.active {
-  background: #00f5ff18;
-  color: #00f5ff;
-  border-color: #00f5ff66;
-  text-shadow: 0 0 8px #00f5ff;
+  background: rgba(45, 212, 191, 0.08);
+  color: #2dd4bf;
+  border-color: rgba(45, 212, 191, 0.4);
+}
+
+.viz-toggle-btn.active-live {
+  background: rgba(16, 185, 129, 0.08);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.viz-toggle-btn.active-mock {
+  background: rgba(245, 158, 11, 0.08);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
 }

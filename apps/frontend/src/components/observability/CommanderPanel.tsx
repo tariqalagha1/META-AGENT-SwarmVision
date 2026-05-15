@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useObservabilityStore } from '../../store'
 import { RoomDrillDown } from './RoomDrillDown'
+import { vizBridge } from '../../viz/VizBridge'
+import type { VizEvent } from '../../viz/VizBridge'
 import './CommanderPanel.css'
 
 const EVENT_TO_ROOM: Record<string, string> = {
@@ -286,6 +288,61 @@ export function CommanderPanel(): JSX.Element {
     })
   },[eventOrder,events])
 
+  // ── VizBridge decision events → live feed ────────────────────────────────
+  useEffect(() => {
+    const handleVizEvent = (event: VizEvent) => {
+      if (event.type !== 'decision') return
+      const p = event.payload as Record<string, unknown>
+      const decision = String(p['decision'] ?? 'ALLOW').toUpperCase()
+      const agentId  = String(p['agent_id'] ?? 'system')
+      const point    = String(p['decision_point'] ?? '')
+      const zone     = String(p['zone'] ?? '')
+
+      const icon  = decision === 'BLOCK' ? '✗' : decision === 'REVIEW' ? '◎' : '✓'
+      const feedColor = decision === 'BLOCK' ? C.danger : decision === 'REVIEW' ? C.warning : C.active
+      const roomId = EVENT_TO_ROOM['DECISION'] ?? (zone ? zone : undefined)
+
+      const cmd = cmdRef.current
+      const xpDelta = XP_MAP['DECISION'] ?? 15
+      cmd.xp = Math.max(0, cmd.xp + xpDelta)
+      cmd.sessionXp += Math.max(0, xpDelta)
+      cmd.level = Math.floor(cmd.xp / XP_PER_LEVEL) + 1
+
+      const counts = eventCountsRef.current
+      counts['DECISION'] = (counts['DECISION'] ?? 0) + 1
+      cmd.missions.forEach(m => {
+        const tmpl = MISSION_TEMPLATES.find(t => t.id === m.id)
+        if (!tmpl || m.id === 'uptime') return
+        if (tmpl.eventTypes.includes('DECISION')) {
+          m.current = Math.min(m.target, m.current + 1)
+          if (m.current >= m.target && !m.complete) {
+            m.complete = true
+            cmd.xp = Math.max(0, cmd.xp + m.xpReward)
+            setTimeout(() => { m.current = 0; m.complete = false }, 2000)
+          }
+        }
+      })
+
+      cmd.feed.unshift({
+        ts: Date.now(),
+        evType: `${icon} DECISION`,
+        agentId: point || agentId.slice(0, 10),
+        xpDelta,
+        color: feedColor,
+      })
+      if (cmd.feed.length > 20) cmd.feed.length = 20
+
+      // Deeplink: clicking this entry opens the zone room
+      if (roomId) {
+        const feedEntry = cmd.feed[0]
+        ;(feedEntry as unknown as Record<string, unknown>)['_roomId'] = roomId
+      }
+    }
+
+    vizBridge.subscribe(handleVizEvent)
+    return () => vizBridge.unsubscribe(handleVizEvent)
+  }, [])
+
   // ── Uptime mission + flush display every 400ms ────────────────────────────
   useEffect(()=>{
     const iv=setInterval(()=>{
@@ -494,12 +551,15 @@ export function CommanderPanel(): JSX.Element {
           {/* Live feed strip */}
           <div className="cmd-feed" role="log" aria-label="Live event feed">
             <span className="cmd-feed-label">LIVE FEED</span>
-            {display.feed.map((entry,i)=>(
+            {display.feed.map((entry,i)=>{
+              const roomId=(entry as unknown as Record<string,unknown>)['_roomId'] as string|undefined
+                         ?? EVENT_TO_ROOM[entry.evType]
+              return (
               <div
                 key={i}
-                className={`cmd-feed-entry${EVENT_TO_ROOM[entry.evType]?' cmd-feed-entry-clickable':''}`}
-                onClick={()=>{ const r=EVENT_TO_ROOM[entry.evType]; if(r) setDrillRoom(r) }}
-                title={EVENT_TO_ROOM[entry.evType]?`Open ${EVENT_TO_ROOM[entry.evType]} room`:undefined}
+                className={`cmd-feed-entry${roomId?' cmd-feed-entry-clickable':''}`}
+                onClick={()=>{ if(roomId) setDrillRoom(roomId) }}
+                title={roomId?`Open ${roomId} room`:undefined}
               >
                 <span className="cmd-feed-dot" style={{background:entry.color}}/>
                 <span className="cmd-feed-type">{entry.evType}</span>
@@ -514,7 +574,8 @@ export function CommanderPanel(): JSX.Element {
                   {Math.round((Date.now()-entry.ts)/1000)}s
                 </span>
               </div>
-            ))}
+              )
+            })}
           </div>
         </>
       )}

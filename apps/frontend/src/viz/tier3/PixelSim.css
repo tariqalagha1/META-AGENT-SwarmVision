@@ -1,9 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+:root {
+  --sv-bg:             #080c14;
+  --sv-surface:        #0d1420;
+  --sv-border:         #1e2d3d;
+  --sv-teal:           #2dd4bf;
+  --sv-amber:          #f59e0b;
+  --sv-red:            #ef4444;
+  --sv-emerald:        #10b981;
+  --sv-indigo:         #6366f1;
+  --sv-text-primary:   #e2e8f0;
+  --sv-text-secondary: #64748b;
+  --sv-text-muted:     #374151;
+  --sv-font:           'JetBrains Mono', 'IBM Plex Mono', monospace;
+}
+
+/* ── Wrapper ──────────────────────────────────────────────────────────────── */
+
 .pixel-sim-wrapper {
   position: relative;
   width: 100%;
   height: 100%;
-  background: #060612;
+  background: var(--sv-bg);
   overflow: hidden;
+  font-family: var(--sv-font);
 }
 
 .pixel-sim-canvas {
@@ -12,90 +32,135 @@
   height: 100%;
 }
 
-/* ── Overlays ─────────────────────────────────────────── */
+/* ── Top overlay ──────────────────────────────────────────────────────────── */
 
 .pixel-sim-overlay-top {
   position: absolute;
   top: 0;
   left: 0;
-  right: 220px;
-  height: 32px;
+  right: 0;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 14px;
-  background: rgba(6, 6, 18, 0.88);
-  border-bottom: 1px solid rgba(0, 245, 255, 0.2);
-  font-family: 'Courier New', Courier, monospace;
+  background: rgba(8, 12, 20, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--sv-border);
   pointer-events: none;
+  z-index: 10;
 }
 
 .pixel-sim-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.2em;
-  color: #00f5ff;
-  text-shadow: 0 0 8px #00f5ff88;
+  letter-spacing: 0.18em;
+}
+
+.pixel-sim-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sv-emerald);
+  flex-shrink: 0;
+  animation: liveBlink 1s ease-in-out infinite;
+}
+
+@keyframes liveBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+.pixel-sim-title-text {
+  color: var(--sv-teal);
+}
+
+.pixel-sim-title-sub {
+  color: var(--sv-text-secondary);
+  font-weight: 400;
 }
 
 .pixel-sim-toggle {
   all: unset;
   pointer-events: all;
   cursor: pointer;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--sv-font);
   font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.1em;
-  color: #304860;
-  border: 1px solid #304860;
+  letter-spacing: 0.12em;
+  color: var(--sv-text-secondary);
+  border: 1px solid var(--sv-border);
   border-radius: 3px;
-  padding: 3px 10px;
-  transition: all 0.15s;
+  padding: 4px 12px;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 .pixel-sim-toggle:hover {
-  color: #00f5ff;
-  border-color: #00f5ff66;
+  color: var(--sv-teal);
+  border-color: var(--sv-teal);
 }
 
-/* Right panel */
+/* ── Right overlay panel ──────────────────────────────────────────────────── */
+
 .pixel-sim-overlay-right {
   position: absolute;
-  top: 0;
+  top: 36px;
   right: 0;
+  bottom: 40px;
   width: 220px;
-  height: calc(100% - 36px);
-  background: rgba(4, 4, 14, 0.92);
-  border-left: 1px solid rgba(0, 245, 255, 0.15);
-  padding: 36px 10px 10px;
-  font-family: 'Courier New', Courier, monospace;
-  overflow: hidden;
+  background: rgba(8, 12, 20, 0.92);
+  backdrop-filter: blur(8px);
+  border-left: 1px solid var(--sv-border);
+  padding: 12px 10px;
   display: flex;
   flex-direction: column;
+  gap: 0;
+  overflow: hidden;
 }
 
 .pixel-sim-panel-title {
   font-size: 7px;
   font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #1a3050;
+  letter-spacing: 0.14em;
+  color: var(--sv-text-secondary);
   text-transform: uppercase;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--sv-border);
   flex-shrink: 0;
 }
+
+/* Agent list */
 
 .pixel-sim-agent-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   flex-shrink: 0;
+  margin-bottom: 14px;
 }
 
 .pixel-sim-agent-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 4px;
+  gap: 7px;
+  padding: 3px 4px;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.pixel-sim-agent-row:hover {
+  background: rgba(30, 45, 61, 0.5);
+}
+
+.pixel-sim-agent-bar {
+  width: 3px;
+  height: 14px;
+  border-radius: 1px;
+  flex-shrink: 0;
 }
 
 .pixel-sim-agent-dot {
@@ -107,62 +172,80 @@
 
 .pixel-sim-agent-name {
   font-size: 8px;
-  color: #4a7090;
+  color: var(--sv-text-primary);
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pixel-sim-agent-zone {
   font-size: 7px;
-  color: #1a3050;
+  color: var(--sv-text-secondary);
+  flex-shrink: 0;
 }
+
+/* Log */
 
 .pixel-sim-log {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   overflow: hidden;
   flex: 1;
 }
 
 .pixel-sim-log-entry {
   font-size: 7px;
-  color: #4a7090;
+  color: var(--sv-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding: 2px 0;
   transition: opacity 0.4s;
 }
 
-/* Bottom stats */
+/* ── Bottom stats bar ─────────────────────────────────────────────────────── */
+
 .pixel-sim-overlay-bottom {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 220px;
-  height: 36px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  background: rgba(6, 6, 18, 0.88);
-  border-top: 1px solid rgba(0, 245, 255, 0.2);
-  font-family: 'Courier New', Courier, monospace;
+  background: rgba(8, 12, 20, 0.95);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--sv-border);
 }
 
 .pixel-sim-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
+  flex: 1;
+  border-right: 1px solid var(--sv-border);
+  padding: 0 4px;
+}
+
+.pixel-sim-stat:last-child {
+  border-right: none;
 }
 
 .pixel-sim-stat-val {
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
+  font-family: var(--sv-font);
 }
 
 .pixel-sim-stat-label {
   font-size: 6px;
-  color: #304860;
-  letter-spacing: 0.1em;
+  color: var(--sv-text-secondary);
+  letter-spacing: 0.12em;
+  font-family: var(--sv-font);
+  text-transform: uppercase;
 }

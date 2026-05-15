@@ -301,3 +301,142 @@ void ASwarmTestInjector::FireNextDemoEvent()
     FString Json = BuildTestMessage(EventType, AgentId, DemoTraceId, ExtraData);
     Router->InjectRawJson(Json, false);
 }
+
+// ─── Phase 2 scenarios ────────────────────────────────────────────────────────
+
+void ASwarmTestInjector::RunScenario_CleanSuccess()
+{
+    GetWorldTimerManager().ClearTimer(DemoTimerHandle);
+    DemoTraceId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
+
+    DemoEventQueue = {
+        TEXT("SWARM_STARTED||task=Clean Success Test"),
+        TEXT("PLANNER_DECISION||decision=use_default_steps"),
+        TEXT("AGENT_STEP_STARTED|fetch_agent|step_name=fetch"),
+        TEXT("AGENT_STEP_COMPLETED|fetch_agent|step_name=fetch,raw_items_count=20"),
+        TEXT("TASK_HANDOFF||from_agent=fetch_agent,to_agent=normalize_agent"),
+        TEXT("AGENT_STEP_STARTED|normalize_agent|step_name=normalize"),
+        TEXT("AGENT_STEP_COMPLETED|normalize_agent|step_name=normalize"),
+        TEXT("TASK_HANDOFF||from_agent=normalize_agent,to_agent=quality_agent"),
+        TEXT("AGENT_STEP_STARTED|quality_agent|step_name=quality"),
+        TEXT("AGENT_STEP_COMPLETED|quality_agent|step_name=quality,quality_score=95.0"),
+        TEXT("TASK_SUCCESS|quality_agent|quality_score=95.0"),
+        TEXT("SWARM_COMPLETED||status=completed,quality_score=95.0"),
+        TEXT("SWARM_RESULT||status=completed,quality_score=95.0,degraded=false"),
+    };
+
+    UE_LOG(LogSwarmTest, Log, TEXT("[Phase2] Scenario: CLEAN SUCCESS — %d events"), DemoEventQueue.Num());
+    GetWorldTimerManager().SetTimer(DemoTimerHandle, this,
+        &ASwarmTestInjector::FireNextDemoEvent, DemoEventIntervalSeconds, true, 0.1f);
+}
+
+void ASwarmTestInjector::RunScenario_HardFail()
+{
+    GetWorldTimerManager().ClearTimer(DemoTimerHandle);
+    DemoTraceId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
+
+    DemoEventQueue = {
+        TEXT("SWARM_STARTED||task=Hard Fail Test"),
+        TEXT("PLANNER_DECISION||decision=use_default_steps"),
+        TEXT("AGENT_STEP_STARTED|fetch_agent|step_name=fetch"),
+        TEXT("AGENT_STEP_COMPLETED|fetch_agent|step_name=fetch,raw_items_count=5"),
+        TEXT("TASK_HANDOFF||from_agent=fetch_agent,to_agent=normalize_agent"),
+        TEXT("AGENT_STEP_STARTED|normalize_agent|step_name=normalize"),
+        TEXT("AGENT_STEP_FAILED|normalize_agent|step_name=normalize,error=schema_validation_error"),
+        TEXT("TASK_FAIL||agent=normalize_agent,reason=schema_validation_error"),
+        TEXT("SWARM_FAILED||reason=normalize_agent_step_failed,step=normalize"),
+    };
+
+    UE_LOG(LogSwarmTest, Log, TEXT("[Phase2] Scenario: HARD FAIL — %d events"), DemoEventQueue.Num());
+    GetWorldTimerManager().SetTimer(DemoTimerHandle, this,
+        &ASwarmTestInjector::FireNextDemoEvent, DemoEventIntervalSeconds, true, 0.1f);
+}
+
+void ASwarmTestInjector::RunScenario_RetryLoop()
+{
+    GetWorldTimerManager().ClearTimer(DemoTimerHandle);
+    DemoTraceId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
+
+    DemoEventQueue = {
+        TEXT("SWARM_STARTED||task=Triple Retry Loop Test"),
+        TEXT("PLANNER_DECISION||decision=use_default_steps"),
+        TEXT("AGENT_STEP_STARTED|fetch_agent|step_name=fetch"),
+        TEXT("AGENT_STEP_COMPLETED|fetch_agent|step_name=fetch,raw_items_count=8"),
+        TEXT("TASK_HANDOFF||from_agent=fetch_agent,to_agent=normalize_agent"),
+        TEXT("AGENT_STEP_STARTED|normalize_agent|step_name=normalize"),
+        TEXT("AGENT_STEP_COMPLETED|normalize_agent|step_name=normalize"),
+        TEXT("TASK_HANDOFF||from_agent=normalize_agent,to_agent=quality_agent"),
+        // Fail 1
+        TEXT("AGENT_STEP_STARTED|quality_agent|step_name=quality"),
+        TEXT("AGENT_STEP_COMPLETED|quality_agent|step_name=quality,quality_score=35.0"),
+        TEXT("AGENT_STEP_RETRY|quality_agent|attempt=1,step_name=quality"),
+        TEXT("RETRY|quality_agent|attempt=1"),
+        // Fail 2
+        TEXT("AGENT_STEP_STARTED|quality_agent|step_name=quality-r1"),
+        TEXT("AGENT_STEP_COMPLETED|quality_agent|step_name=quality-r1,quality_score=52.0"),
+        TEXT("AGENT_STEP_RETRY|quality_agent|attempt=2,step_name=quality-r1"),
+        TEXT("RETRY|quality_agent|attempt=2"),
+        // Fail 3
+        TEXT("AGENT_STEP_STARTED|quality_agent|step_name=quality-r2"),
+        TEXT("AGENT_STEP_COMPLETED|quality_agent|step_name=quality-r2,quality_score=71.0"),
+        TEXT("AGENT_STEP_RETRY|quality_agent|attempt=3,step_name=quality-r2"),
+        TEXT("RETRY|quality_agent|attempt=3"),
+        // Pass on attempt 4
+        TEXT("AGENT_STEP_STARTED|quality_agent|step_name=quality-r3"),
+        TEXT("AGENT_STEP_COMPLETED|quality_agent|step_name=quality-r3,quality_score=82.0"),
+        TEXT("TASK_SUCCESS|quality_agent|quality_score=82.0,retries=3"),
+        TEXT("SWARM_COMPLETED||status=completed,quality_score=82.0,degraded=true"),
+    };
+
+    UE_LOG(LogSwarmTest, Log, TEXT("[Phase2] Scenario: RETRY LOOP (3x) — %d events"), DemoEventQueue.Num());
+    GetWorldTimerManager().SetTimer(DemoTimerHandle, this,
+        &ASwarmTestInjector::FireNextDemoEvent, DemoEventIntervalSeconds, true, 0.1f);
+}
+
+void ASwarmTestInjector::RunScenario_Anomaly()
+{
+    GetWorldTimerManager().ClearTimer(DemoTimerHandle);
+    DemoTraceId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
+
+    DemoEventQueue = {
+        TEXT("SWARM_STARTED||task=Anomaly Detection Test"),
+        TEXT("PLANNER_DECISION||decision=use_default_steps"),
+        TEXT("AGENT_STEP_STARTED|fetch_agent|step_name=fetch"),
+        TEXT("AGENT_STEP_COMPLETED|fetch_agent|step_name=fetch,raw_items_count=15"),
+        TEXT("TASK_HANDOFF||from_agent=fetch_agent,to_agent=normalize_agent"),
+        TEXT("AGENT_STEP_STARTED|normalize_agent|step_name=normalize"),
+        // Anomaly fires mid-normalize
+        TEXT("ANOMALY||source=normalize_agent,severity=high,description=unexpected_token_in_payload"),
+        TEXT("META_INSIGHT||insight=anomaly_may_indicate_data_corruption"),
+        // Normalize continues despite anomaly
+        TEXT("AGENT_STEP_COMPLETED|normalize_agent|step_name=normalize"),
+        TEXT("TASK_HANDOFF||from_agent=normalize_agent,to_agent=quality_agent"),
+        TEXT("AGENT_STEP_STARTED|quality_agent|step_name=quality"),
+        TEXT("AGENT_STEP_COMPLETED|quality_agent|step_name=quality,quality_score=66.0"),
+        TEXT("TASK_SUCCESS|quality_agent|quality_score=66.0"),
+        TEXT("SWARM_COMPLETED||status=completed_with_anomaly,quality_score=66.0,degraded=true"),
+    };
+
+    UE_LOG(LogSwarmTest, Log, TEXT("[Phase2] Scenario: ANOMALY — %d events"), DemoEventQueue.Num());
+    GetWorldTimerManager().SetTimer(DemoTimerHandle, this,
+        &ASwarmTestInjector::FireNextDemoEvent, DemoEventIntervalSeconds, true, 0.1f);
+}
+
+void ASwarmTestInjector::RunScenario_Idle()
+{
+    GetWorldTimerManager().ClearTimer(DemoTimerHandle);
+    DemoTraceId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
+
+    // Just spawn agents and let them sit idle — tests zone Idle lighting
+    DemoEventQueue = {
+        TEXT("SWARM_STARTED||task=Idle Lighting Test"),
+        TEXT("AGENT_SPAWN|fetch_agent|zone=Intake"),
+        TEXT("AGENT_SPAWN|normalize_agent|zone=Transform"),
+        TEXT("AGENT_SPAWN|quality_agent|zone=Validation"),
+        TEXT("AGENT_STATE_SNAPSHOT||"),  // subsystem will emit idle state for all
+    };
+
+    UE_LOG(LogSwarmTest, Log, TEXT("[Phase2] Scenario: IDLE — %d events"), DemoEventQueue.Num());
+    GetWorldTimerManager().SetTimer(DemoTimerHandle, this,
+        &ASwarmTestInjector::FireNextDemoEvent, DemoEventIntervalSeconds, true, 0.1f);
+}

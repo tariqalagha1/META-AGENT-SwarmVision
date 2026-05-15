@@ -15,6 +15,7 @@ interface VizStats {
   shipped: number
   active: number
   errors: number
+  latency: number | null
 }
 
 interface VizState {
@@ -31,12 +32,15 @@ interface VizStore extends VizState {
   setActiveRoom: (id: string | null) => void
   applyEvent: (event: VizEvent) => void
   initMockAgents: () => void
+  addLog: (msg: string) => void
+  connectLive: () => void
+  useMock: () => void
 }
 
 type Updater = (s: VizStore) => VizStore
 type Selector<T> = (s: VizStore) => T
 
-const AGENT_COLORS = ['#00f5ff', '#ff006e', '#ffbe0b', '#8338ec', '#06d6a0', '#ff4500']
+const AGENT_COLORS = ['#2dd4bf', '#f59e0b', '#10b981', '#6366f1', '#8b5cf6', '#ef4444']
 const AGENT_NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot']
 
 let logCounter = 0
@@ -57,8 +61,29 @@ const subscribeStore = (listener: () => void) => {
   return () => storeListeners.delete(listener)
 }
 
-function addLog(log: LogEntry[], entry: LogEntry): LogEntry[] {
+function addLogEntry(log: LogEntry[], entry: LogEntry): LogEntry[] {
   return [entry, ...log].slice(0, 50)
+}
+
+const addLog = (msg: string) => {
+  setState((s) => ({
+    ...s,
+    log: addLogEntry(s.log, { id: nextLogId(), msg, ts: Date.now() }),
+  }))
+}
+
+const connectLive = () => {
+  const url = (import.meta.env.VITE_API_URL as string | undefined) ?? 'ws://localhost:8012'
+  const wsUrl = url.startsWith('ws') ? url : url.replace(/^http/, 'ws')
+  vizBridge.connectWS(wsUrl + '/ws/events')
+  vizBridge.connectMetricsWS(wsUrl + '/metrics')
+  addLog('WS connected — live mode active')
+}
+
+const useMock = () => {
+  vizBridge.disconnectWS()
+  vizBridge.startMock()
+  addLog('Mock engine active')
 }
 
 const initMockAgents = () => {
@@ -95,7 +120,7 @@ const applyEvent = (event: VizEvent) => {
         if (agent) {
           agents.set(agentId, { ...agent, zone: toZone, state: 'moving' })
         }
-        log = addLog(log, {
+        log = addLogEntry(log, {
           id: nextLogId(),
           msg: `${String(p['agentName'] ?? agentId)} → ${toZone}`,
           ts: Date.now(),
@@ -111,9 +136,9 @@ const applyEvent = (event: VizEvent) => {
           fromZone: String(p['zone'] ?? 'INTAKE'),
           toZone: 'FORGE',
           progress: 0,
-          color: String(p['color'] ?? '#ffbe0b'),
+          color: String(p['color'] ?? '#f59e0b'),
         })
-        log = addLog(log, {
+        log = addLogEntry(log, {
           id: nextLogId(),
           msg: `SPAWN ${String(p['taskName'] ?? taskId)}`,
           ts: Date.now(),
@@ -126,7 +151,7 @@ const applyEvent = (event: VizEvent) => {
         tasks.delete(taskId)
         stats.processed += 1
         stats.shipped += 1
-        log = addLog(log, {
+        log = addLogEntry(log, {
           id: nextLogId(),
           msg: `✓ SHIPPED ${taskId}`,
           ts: Date.now(),
@@ -135,11 +160,33 @@ const applyEvent = (event: VizEvent) => {
       }
       case 'hitl_trigger': {
         stats.errors += 1
-        log = addLog(log, {
+        log = addLogEntry(log, {
           id: nextLogId(),
           msg: `⚠ HITL ${String(p['severity'] ?? 'medium').toUpperCase()}`,
           ts: Date.now(),
         })
+        break
+      }
+      case 'metrics_update': {
+        const processed = Number(p['processed'] ?? 0)
+        const shipped   = Number(p['shipped']   ?? 0)
+        const active    = Number(p['active']     ?? 0)
+        const errors    = Number(p['errors']     ?? 0)
+        const latencyRaw = p['latency_ms']
+        stats.processed = Math.max(s.stats.processed, processed)
+        stats.shipped   = Math.max(s.stats.shipped,   shipped)
+        stats.active    = active
+        stats.errors    = Math.max(s.stats.errors,    errors)
+        stats.latency   = typeof latencyRaw === 'number' ? latencyRaw : s.stats.latency
+        break
+      }
+      case 'decision': {
+        const decision = String(p['decision'] ?? 'ALLOW').toUpperCase()
+        const agentId  = String(p['agent_id'] ?? 'system')
+        const point    = String(p['decision_point'] ?? '')
+        const icon     = decision === 'BLOCK' ? '✗' : decision === 'REVIEW' ? '◎' : '✓'
+        const label    = point ? `${icon} ${decision}: ${point}` : `${icon} DECISION ${decision} (${agentId})`
+        log = addLogEntry(log, { id: nextLogId(), msg: label, ts: Date.now() })
         break
       }
     }
@@ -151,7 +198,7 @@ const applyEvent = (event: VizEvent) => {
 storeState = {
   agents: new Map(),
   tasks: new Map(),
-  stats: { processed: 0, shipped: 0, active: 0, errors: 0 },
+  stats: { processed: 0, shipped: 0, active: 0, errors: 0, latency: null },
   log: [],
   activeView: 'ops',
   activeRoom: null,
@@ -160,6 +207,9 @@ storeState = {
   setActiveRoom: (id) => setState((s) => ({ ...s, activeRoom: id })),
   applyEvent,
   initMockAgents,
+  addLog,
+  connectLive,
+  useMock,
 }
 
 // Seed agents and start mock on module load

@@ -1,10 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
 .swarm-dag-wrapper {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: row;
-  background: #0a0a1a;
-  font-family: 'Courier New', Courier, monospace;
+  background: #080c14;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
   position: relative;
   overflow: hidden;
 }
@@ -20,53 +22,67 @@
 /* Override ReactFlow background */
 .swarm-dag-canvas .react-flow {
   flex: 1;
-  background: #0a0a1a;
+  background: #080c14;
 }
+
+/* ── Top bar ──────────────────────────────────────────────────────────────── */
 
 .swarm-dag-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 14px;
-  background: #060612;
-  border-bottom: 1px solid #00f5ff22;
+  padding: 0 14px;
+  height: 36px;
+  background: rgba(8, 12, 20, 0.98);
+  border-bottom: 1px solid #1e2d3d;
   flex-shrink: 0;
   z-index: 10;
 }
 
 .swarm-dag-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.2em;
-  color: #00f5ff;
-  text-shadow: 0 0 8px #00f5ff88;
+  letter-spacing: 0.18em;
+}
+
+.swarm-dag-title-main {
+  color: #2dd4bf;
+}
+
+.swarm-dag-title-sub {
+  color: #64748b;
+  font-weight: 400;
 }
 
 .swarm-dag-toggle {
   all: unset;
   cursor: pointer;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
   font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.1em;
-  color: #304860;
-  border: 1px solid #304860;
+  letter-spacing: 0.12em;
+  color: #64748b;
+  border: 1px solid #1e2d3d;
   border-radius: 3px;
-  padding: 3px 10px;
-  transition: all 0.15s;
+  padding: 4px 12px;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 .swarm-dag-toggle:hover {
-  color: #00f5ff;
-  border-color: #00f5ff66;
+  color: #2dd4bf;
+  border-color: #2dd4bf;
 }
 
-/* Sidebar */
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+
 .swarm-dag-sidebar {
-  width: 200px;
+  width: 220px;
   flex-shrink: 0;
-  background: #060612;
-  border-left: 1px solid #00f5ff22;
+  background: #0d1420;
+  border-left: 1px solid #1e2d3d;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -74,44 +90,108 @@
 }
 
 .swarm-dag-sidebar-section {
-  padding: 12px;
-  border-bottom: 1px solid #0a1a2a;
+  padding: 12px 10px;
+  border-bottom: 1px solid #1e2d3d;
   flex-shrink: 0;
+}
+
+.swarm-dag-sidebar-section:last-child {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .swarm-dag-sidebar-title {
   font-size: 7px;
   font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #1a3050;
+  letter-spacing: 0.14em;
+  color: #64748b;
   text-transform: uppercase;
   margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #1e2d3d;
 }
+
+/* Stats */
 
 .swarm-dag-stat {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  padding: 3px 0;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+
+.swarm-dag-stat:hover {
+  background: rgba(30, 45, 61, 0.4);
 }
 
 .swarm-dag-stat-label {
   font-size: 7px;
-  color: #1a3050;
+  color: #64748b;
   letter-spacing: 0.08em;
 }
 
 .swarm-dag-stat-val {
   font-size: 16px;
   font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1;
+}
+
+/* Agent list */
+
+.swarm-dag-agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.swarm-dag-agent-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 4px;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.swarm-dag-agent-row:hover {
+  background: rgba(30, 45, 61, 0.5);
+}
+
+.swarm-dag-agent-bar {
+  width: 3px;
+  height: 14px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.swarm-dag-agent-name {
+  font-size: 8px;
+  color: #e2e8f0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swarm-dag-agent-zone {
+  font-size: 7px;
+  color: #64748b;
+  flex-shrink: 0;
 }
 
 /* Log */
+
 .swarm-dag-log {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 1px;
   overflow: hidden;
+  flex: 1;
 }
 
 .swarm-dag-log-entry {
@@ -120,21 +200,30 @@
 }
 
 .swarm-dag-log-msg {
-  font-size: 8px;
-  color: #4a7090;
+  font-size: 7px;
+  color: #64748b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   display: block;
 }
 
-/* Animated edge particles — CSS keyframe trick */
-@keyframes flow-dot {
+/* ── ReactFlow edge styling ───────────────────────────────────────────────── */
+
+@keyframes flowDash {
   from { stroke-dashoffset: 24; }
   to   { stroke-dashoffset: 0; }
 }
 
 .react-flow__edge-path {
-  stroke-dasharray: 6 18;
-  animation: flow-dot 1.2s linear infinite;
+  stroke: #2dd4bf !important;
+  stroke-width: 1.5 !important;
+  stroke-dasharray: 6 12;
+  stroke-dashoffset: 0;
+  opacity: 0.45;
+  animation: flowDash 1.2s linear infinite;
+}
+
+.react-flow__edge-path:hover {
+  opacity: 0.9;
 }
