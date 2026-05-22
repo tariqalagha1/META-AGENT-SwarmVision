@@ -182,10 +182,13 @@ export function AgentEcosystemPanel({ apiBaseUrl, onClose }: AgentEcosystemPanel
   useEffect(() => {
     if (eventOrder.length === 0) return
     const sim = simRef.current
-    if (eventOrder[0] === sim.lastEventId) return
-    sim.lastEventId = eventOrder[0]
+    // Find only events we haven't processed yet (after lastEventId)
+    const lastIdx = sim.lastEventId ? eventOrder.lastIndexOf(sim.lastEventId) : -1
+    const newIds = lastIdx >= 0 ? eventOrder.slice(lastIdx + 1) : eventOrder.slice(-5)
+    if (newIds.length === 0) return
+    sim.lastEventId = eventOrder[eventOrder.length - 1]
 
-    eventOrder.slice(0, 5).forEach(eid => {
+    newIds.slice(0, 10).forEach(eid => {
       const ev = events[eid]
       if (!ev) return
       const evRaw   = ev as unknown as Record<string, unknown>
