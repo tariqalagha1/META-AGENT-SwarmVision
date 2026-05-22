@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { vizBridge, ZONES } from './VizBridge'
 import type { VizAgent, VizTask, VizEvent } from './VizBridge'
+import { observabilityStore } from '../store/useObservabilityStore'
 
 export type { VizAgent, VizTask, VizEvent }
 
@@ -216,6 +217,115 @@ storeState = {
 initMockAgents()
 vizBridge.startMock()
 vizBridge.subscribe((event) => applyEvent(event))
+
+// ── Bridge: pipe VizBridge mock events into the observability graph store ──────
+// Translates each VizEvent to a NormalizedEvent so the System Graph on the
+// Observe tab stays live even when the backend at :8012 is not running.
+
+let _mockTraceId = `mock-trace-${Date.now()}`
+let _mockEventSeq = 0
+
+const makeMockEventId = () => `mock-evt-${++_mockEventSeq}-${Date.now()}`
+
+const MOCK_PAYLOAD_BASE = { source: 'viz-mock' }
+
+const vizEventToNormalized = (event: VizEvent) => {
+  const p = event.payload
+  const ts = Date.now()
+
+  switch (event.type) {
+    case 'agent_move': {
+      const agentId  = String(p['agentId']   ?? '')
+      const fromZone = String(p['fromZone']   ?? '')
+      const toZone   = String(p['toZone']     ?? '')
+      return [
+        {
+          event_id: makeMockEventId(), id: makeMockEventId(),
+          event_type: 'TASK_HANDOFF', type: 'TASK_HANDOFF',
+          timestamp: ts, trace_id: _mockTraceId,
+          agent_id: agentId,
+          source_agent_id: agentId,
+          target_agent_id: agentId,
+          payload: { ...MOCK_PAYLOAD_BASE, fromZone, toZone, agentName: p['agentName'] },
+          _meta: { normalized: true as const, source_event_type: 'TASK_HANDOFF' },
+        },
+      ]
+    }
+    case 'task_spawn': {
+      const agentId = 'intake-agent'
+      return [
+        {
+          event_id: makeMockEventId(), id: makeMockEventId(),
+          event_type: 'AGENT_SPAWN', type: 'AGENT_SPAWN',
+          timestamp: ts, trace_id: _mockTraceId,
+          agent_id: agentId,
+          payload: { ...MOCK_PAYLOAD_BASE, taskId: p['taskId'], taskName: p['taskName'], zone: p['zone'] },
+          _meta: { normalized: true as const, source_event_type: 'AGENT_SPAWN' },
+        },
+      ]
+    }
+    case 'task_complete': {
+      return [
+        {
+          event_id: makeMockEventId(), id: makeMockEventId(),
+          event_type: 'TASK_SUCCESS', type: 'TASK_SUCCESS',
+          timestamp: ts, trace_id: _mockTraceId,
+          agent_id: 'dispatch-agent',
+          payload: { ...MOCK_PAYLOAD_BASE, taskId: p['taskId'], fromZone: p['fromZone'] },
+          _meta: { normalized: true as const, source_event_type: 'TASK_SUCCESS' },
+        },
+      ]
+    }
+    case 'hitl_trigger': {
+      return [
+        {
+          event_id: makeMockEventId(), id: makeMockEventId(),
+          event_type: 'ANOMALY', type: 'ANOMALY',
+          timestamp: ts, trace_id: _mockTraceId,
+          agent_id: 'hitl-agent',
+          payload: { ...MOCK_PAYLOAD_BASE, severity: p['severity'], zone: p['zone'] },
+          _meta: { normalized: true as const, source_event_type: 'ANOMALY' },
+        },
+      ]
+    }
+    case 'decision': {
+      const agentId = String(p['agent_id'] ?? 'system')
+      return [
+        {
+          event_id: makeMockEventId(), id: makeMockEventId(),
+          event_type: 'DECISION_EVENT', type: 'DECISION_EVENT',
+          timestamp: ts, trace_id: _mockTraceId,
+          agent_id: agentId,
+          payload: { ...MOCK_PAYLOAD_BASE, ...p },
+          _meta: { normalized: true as const, source_event_type: 'DECISION_EVENT' },
+        },
+      ]
+    }
+    default:
+      return []
+  }
+}
+
+// Emit a SWARM_STARTED event once so the trace auto-selects in the graph
+const _swarmStartedEvt = {
+  event_id: makeMockEventId(), id: makeMockEventId(),
+  event_type: 'SWARM_STARTED', type: 'SWARM_STARTED',
+  timestamp: Date.now(), trace_id: _mockTraceId,
+  agent_id: 'system',
+  payload: { ...MOCK_PAYLOAD_BASE, task: 'Mock swarm demo' },
+  _meta: { normalized: true as const, source_event_type: 'SWARM_STARTED' },
+}
+setTimeout(() => {
+  observabilityStore.getState().addBatchEvents([_swarmStartedEvt])
+}, 200)
+
+// Bridge: forward all subsequent mock events into the observability store
+vizBridge.subscribe((event) => {
+  const normalized = vizEventToNormalized(event)
+  if (normalized.length > 0) {
+    observabilityStore.getState().addBatchEvents(normalized)
+  }
+})
 
 export const useVizStore = <T,>(selector: Selector<T>): T =>
   useSyncExternalStore(subscribeStore, () => selector(getState()), () => selector(getState()))
