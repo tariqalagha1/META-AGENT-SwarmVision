@@ -23,12 +23,12 @@ interface VizState {
   tasks: Map<string, VizTask>
   stats: VizStats
   log: LogEntry[]
-  activeView: 'ops' | 'demo'
+  activeView: 'ops' | 'demo' | 'none'
   activeRoom: string | null
 }
 
 interface VizStore extends VizState {
-  setView: (v: 'ops' | 'demo') => void
+  setView: (v: 'ops' | 'demo' | 'none') => void
   setActiveRoom: (id: string | null) => void
   applyEvent: (event: VizEvent) => void
   initMockAgents: () => void
@@ -200,7 +200,7 @@ storeState = {
   tasks: new Map(),
   stats: { processed: 0, shipped: 0, active: 0, errors: 0, latency: null },
   log: [],
-  activeView: 'ops',
+  activeView: 'none',
   activeRoom: null,
 
   setView: (v) => setState((s) => ({ ...s, activeView: v })),

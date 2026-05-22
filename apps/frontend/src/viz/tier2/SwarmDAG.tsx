@@ -139,6 +139,14 @@ export default function SwarmDAG() {
           >
             DEMO VIEW →
           </button>
+          <button
+            type="button"
+            className="swarm-dag-toggle"
+            onClick={() => setView('none')}
+            style={{ marginLeft: '8px' }}
+          >
+            ✕ CLOSE
+          </button>
         </div>
 
         <ReactFlow

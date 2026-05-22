@@ -69,6 +69,14 @@ export default function PixelSim() {
         >
           ← OPS VIEW
         </button>
+        <button
+          type="button"
+          className="pixel-sim-toggle"
+          onClick={() => setView('none')}
+          style={{ marginLeft: '8px' }}
+        >
+          ✕ CLOSE
+        </button>
       </div>
 
       {/* Right panel overlay */}

@@ -9,6 +9,25 @@
   --ov-accent: #00C8FF;
   --ov-error-text: #F7C1C1;
   --ov-error-bg: #2B1218;
+  --nav-h: 52px;
+  --obs-chrome-h: 148px; /* subheader(44) + channel(40) + runbar(52) + trace(50) */
+}
+
+/* RTL font override */
+[dir='rtl'] body {
+  font-family: 'IBM Plex Sans Arabic', 'Segoe UI', 'Inter', sans-serif;
+}
+
+[dir='rtl'] .app-shell-controls {
+  flex-direction: row-reverse;
+}
+
+[dir='rtl'] .app-channel-strip {
+  flex-direction: row-reverse;
+}
+
+[dir='rtl'] .app-runbar {
+  flex-direction: row-reverse;
 }
 
 * {
@@ -31,8 +50,12 @@ body {
 
 .app-shell {
   min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: var(--ov-bg);
   color: var(--ov-text-primary);
+  overflow: hidden;
 }
 
 .app-shell-header {
@@ -153,13 +176,6 @@ body {
   font-size: 0.84rem;
 }
 
-.app-main-layout {
-  display: grid;
-  grid-template-columns: 3fr 2fr;
-  gap: 1rem;
-  padding: 1rem 1.4rem 1.4rem;
-}
-
 .app-main-left,
 .app-main-right {
   min-width: 0;
@@ -169,10 +185,6 @@ body {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto auto;
   gap: 0.75rem;
-}
-
-.app-main-graph {
-  min-height: calc(100vh - 180px);
 }
 
 .app-ecosystem-overlay {
@@ -200,8 +212,160 @@ body {
   border-color: #8A6200;
 }
 
+/* ── Subheader ───────────────────────────────────────────────────── */
+.app-subheader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1.4rem;
+  border-bottom: 1px solid var(--ov-border);
+  background: var(--ov-surface);
+  flex-wrap: wrap;
+}
+
+[dir='rtl'] .app-subheader {
+  flex-direction: row-reverse;
+}
+
+.app-scope-label {
+  font-size: 0.8rem;
+  color: var(--ov-text-secondary);
+}
+
+/* ── Tab content ─────────────────────────────────────────────────── */
+.app-tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Observe content needs to scroll, but graph needs height */
+.observe-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.app-main-layout {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 1rem;
+  padding: 1rem 1.4rem 1.4rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-main-graph {
+  /* Explicit height so ReactFlow can measure its container */
+  height: calc(100vh - var(--nav-h) - var(--obs-chrome-h));
+  min-height: 400px;
+}
+
+/* ── Visualize tab ───────────────────────────────────────────────── */
+.viz-tab {
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - var(--nav-h));
+}
+
+.viz-tab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 1.2rem;
+  border-bottom: 1px solid var(--ov-border);
+  background: var(--ov-surface);
+  flex-wrap: wrap;
+}
+
+[dir='rtl'] .viz-tab-bar {
+  flex-direction: row-reverse;
+}
+
+.viz-tab-bar-group {
+  display: flex;
+  gap: 4px;
+}
+
+.viz-tab-btn {
+  all: unset;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 6px 14px;
+  border-radius: 4px;
+  color: var(--ov-text-secondary);
+  border: 1px solid transparent;
+  transition: color 0.18s, border-color 0.18s, background 0.18s;
+}
+
+.viz-tab-btn:hover {
+  color: var(--ov-accent);
+  border-color: rgba(0, 200, 255, 0.3);
+}
+
+.viz-tab-btn.is-active {
+  color: var(--ov-accent);
+  background: rgba(0, 200, 255, 0.07);
+  border-color: rgba(0, 200, 255, 0.4);
+}
+
+.viz-tab-btn--live.is-live {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.07);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.viz-tab-btn--mock.is-mock {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.07);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.viz-tab-canvas {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+.viz-tab-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--ov-text-secondary);
+  font-size: 0.9rem;
+}
+
+.viz-tab-empty-hex {
+  font-size: 2.5rem;
+  color: var(--ov-border);
+}
+
+/* ── Command tab ─────────────────────────────────────────────────── */
+.command-tab {
+  padding: 1rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: calc(100vh - var(--nav-h));
+  overflow-y: auto;
+}
+
 @media (max-width: 900px) {
-  .app-shell-header {
+  .app-subheader {
     flex-direction: column;
     align-items: stretch;
   }

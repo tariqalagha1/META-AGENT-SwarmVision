@@ -17,20 +17,23 @@ export function VizToggle() {
     setSource('mock')
   }
 
+  const handleOps = () => setView(activeView === 'ops' ? 'none' : 'ops')
+  const handleDemo = () => setView(activeView === 'demo' ? 'none' : 'demo')
+
   return (
     <div className="viz-toggle">
       <div className="viz-toggle-row">
         <button
           type="button"
           className={`viz-toggle-btn ${activeView === 'ops' ? 'active' : ''}`}
-          onClick={() => setView('ops')}
+          onClick={handleOps}
         >
           OPS VIEW
         </button>
         <button
           type="button"
           className={`viz-toggle-btn ${activeView === 'demo' ? 'active' : ''}`}
-          onClick={() => setView('demo')}
+          onClick={handleDemo}
         >
           DEMO VIEW
         </button>

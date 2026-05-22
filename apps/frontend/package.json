@@ -13,10 +13,13 @@
   },
   "dependencies": {
     "@xyflow/react": "^12.10.2",
+    "i18next": "^23.16.8",
+    "i18next-browser-languagedetector": "^8.0.5",
     "pixi.js": "^8.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-force-graph-3d": "^1.21.3",
+    "react-i18next": "^15.1.4",
     "react-window": "^1.8.9",
     "three": "^0.158.0",
     "ws": "^8.14.2"

@@ -332,8 +332,8 @@
 }
 
 .ov-panel-graph-immersive {
-  min-height: calc(100vh - 170px);
-  height: calc(100vh - 170px);
+  min-height: 400px;
+  height: 100%;
   border-radius: 14px;
   overflow: hidden;
   background:
