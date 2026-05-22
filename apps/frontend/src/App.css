@@ -166,6 +166,11 @@ body {
   font-size: 0.78rem;
 }
 
+.app-runbar-offline {
+  color: var(--ov-text-secondary);
+  font-size: 0.78rem;
+}
+
 .app-disconnect-banner {
   margin: 0.7rem 1.4rem 0;
   border: 1px solid #E24B4A;

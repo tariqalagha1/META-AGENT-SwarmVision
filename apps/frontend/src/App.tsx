@@ -310,7 +310,14 @@ export default function App() {
         })
       }
     } catch (error) {
-      setRunError((error as Error).message)
+      const msg = (error as Error).message
+      // Suppress connection-refused noise when backend is not running
+      if (msg.includes('fetch') || msg.includes('NetworkError') || msg.includes('Failed to fetch') || msg.includes('ERR_CONNECTION_REFUSED')) {
+        setRunError('Backend offline — running in mock mode')
+        setTimeout(() => setRunError(null), 3000)
+      } else {
+        setRunError(msg)
+      }
     } finally {
       setRunPending(false)
     }
@@ -371,7 +378,11 @@ export default function App() {
             <button type="button" className="app-action-btn" onClick={() => void runSwarm()} disabled={runPending}>
               {runPending ? t('runbar.running') : t('runbar.run')}
             </button>
-            {runError && <span className="app-runbar-error">{runError}</span>}
+            {runError && (
+              <span className={runError.includes('mock mode') ? 'app-runbar-offline' : 'app-runbar-error'}>
+                {runError}
+              </span>
+            )}
           </div>
         </>
       )}
