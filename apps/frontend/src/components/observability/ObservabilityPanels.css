@@ -368,6 +368,7 @@
   background: rgba(8, 18, 34, 0.78);
   backdrop-filter: blur(8px);
   padding: 0.5rem 0.75rem;
+  pointer-events: none;
 }
 
 .ov-panel-graph-immersive .ov-floating-header h2 {
@@ -386,6 +387,22 @@
   background: rgba(8, 18, 34, 0.72);
   backdrop-filter: blur(8px);
   overflow: hidden;
+  /* Pass wheel/click events through the transparent parts of the overlay
+     so React Flow zoom and node interaction work everywhere on the canvas */
+  pointer-events: none;
+}
+
+/* Re-enable pointer events only on interactive controls inside the bar */
+.ov-floating-controls button,
+.ov-floating-controls input,
+.ov-floating-controls select,
+.ov-floating-controls label,
+.ov-floating-controls [role="button"],
+.ov-floating-controls .ov-filter-chip,
+.ov-floating-controls .ov-graph-mode-btn,
+.ov-floating-controls .ov-replay-controls,
+.ov-floating-controls .ov-controls-bar {
+  pointer-events: auto;
 }
 
 .ov-floating-controls .ov-controls-bar,
@@ -429,6 +446,8 @@
   background: rgba(8, 18, 34, 0.72);
   backdrop-filter: blur(8px);
   padding: 0.55rem 0.75rem 0.65rem;
+  /* Legend is display-only — pass events through to the graph beneath */
+  pointer-events: none;
 }
 
 .ov-graph-canvas-pipeline {
