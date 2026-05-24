@@ -229,6 +229,28 @@ const makeMockEventId = () => `mock-evt-${++_mockEventSeq}-${Date.now()}`
 
 const MOCK_PAYLOAD_BASE = { source: 'viz-mock' }
 
+// Zone → canonical role agent for edge endpoints
+const ZONE_AGENT: Record<string, string> = {
+  INTAKE:   'intake-agent',
+  FORGE:    'intake-agent',   // tasks enter via intake then go to worker agents
+  QA:       'intake-agent',
+  ROUTER:   'intake-agent',
+  MEMORY:   'intake-agent',
+  DISPATCH: 'dispatch-agent',
+  AUDIT:    'dispatch-agent',
+  HITL:     'hitl-agent',
+}
+
+// Derive the destination agent: prefer the actual agent in toZone, fall back to zone role
+function resolveTargetAgent(toZone: string): string {
+  // Look through current VizStore agents for one in the target zone
+  const agents = storeState.agents
+  for (const [, agent] of agents) {
+    if (agent.zone === toZone) return agent.id
+  }
+  return ZONE_AGENT[toZone] ?? toZone.toLowerCase() + '-agent'
+}
+
 const vizEventToNormalized = (event: VizEvent) => {
   const p = event.payload
   const ts = Date.now()
@@ -238,6 +260,8 @@ const vizEventToNormalized = (event: VizEvent) => {
       const agentId  = String(p['agentId']   ?? '')
       const fromZone = String(p['fromZone']   ?? '')
       const toZone   = String(p['toZone']     ?? '')
+      // Resolve the agent currently in the destination zone as the handoff target
+      const targetAgentId = resolveTargetAgent(toZone)
       return [
         {
           event_id: makeMockEventId(), id: makeMockEventId(),
@@ -245,46 +269,62 @@ const vizEventToNormalized = (event: VizEvent) => {
           timestamp: ts, trace_id: _mockTraceId,
           agent_id: agentId,
           source_agent_id: agentId,
-          target_agent_id: agentId,
+          target_agent_id: targetAgentId !== agentId ? targetAgentId : 'dispatch-agent',
           payload: { ...MOCK_PAYLOAD_BASE, fromZone, toZone, agentName: p['agentName'] },
           _meta: { normalized: true as const, source_event_type: 'TASK_HANDOFF' },
         },
       ]
     }
     case 'task_spawn': {
-      const agentId = 'intake-agent'
+      // intake-agent receives a new task and hands it to a random worker agent
+      const agents = [...storeState.agents.values()].filter(a => a.id.startsWith('agent-'))
+      const target = agents.length > 0
+        ? agents[Math.floor(Math.random() * agents.length)].id
+        : 'agent-0'
       return [
         {
           event_id: makeMockEventId(), id: makeMockEventId(),
-          event_type: 'AGENT_SPAWN', type: 'AGENT_SPAWN',
+          event_type: 'TASK_HANDOFF', type: 'TASK_HANDOFF',
           timestamp: ts, trace_id: _mockTraceId,
-          agent_id: agentId,
+          agent_id: 'intake-agent',
+          source_agent_id: 'intake-agent',
+          target_agent_id: target,
           payload: { ...MOCK_PAYLOAD_BASE, taskId: p['taskId'], taskName: p['taskName'], zone: p['zone'] },
-          _meta: { normalized: true as const, source_event_type: 'AGENT_SPAWN' },
+          _meta: { normalized: true as const, source_event_type: 'TASK_HANDOFF' },
         },
       ]
     }
     case 'task_complete': {
+      // A worker agent completes and hands off to dispatch
+      const agents = [...storeState.agents.values()].filter(a => a.id.startsWith('agent-'))
+      const source = agents.length > 0
+        ? agents[Math.floor(Math.random() * agents.length)].id
+        : 'agent-0'
       return [
         {
           event_id: makeMockEventId(), id: makeMockEventId(),
-          event_type: 'TASK_SUCCESS', type: 'TASK_SUCCESS',
+          event_type: 'TASK_HANDOFF', type: 'TASK_HANDOFF',
           timestamp: ts, trace_id: _mockTraceId,
           agent_id: 'dispatch-agent',
+          source_agent_id: source,
+          target_agent_id: 'dispatch-agent',
           payload: { ...MOCK_PAYLOAD_BASE, taskId: p['taskId'], fromZone: p['fromZone'] },
-          _meta: { normalized: true as const, source_event_type: 'TASK_SUCCESS' },
+          _meta: { normalized: true as const, source_event_type: 'TASK_HANDOFF' },
         },
       ]
     }
     case 'hitl_trigger': {
+      // dispatch-agent escalates an anomaly to hitl-agent
       return [
         {
           event_id: makeMockEventId(), id: makeMockEventId(),
-          event_type: 'ANOMALY', type: 'ANOMALY',
+          event_type: 'TASK_HANDOFF', type: 'TASK_HANDOFF',
           timestamp: ts, trace_id: _mockTraceId,
           agent_id: 'hitl-agent',
+          source_agent_id: 'dispatch-agent',
+          target_agent_id: 'hitl-agent',
           payload: { ...MOCK_PAYLOAD_BASE, severity: p['severity'], zone: p['zone'] },
-          _meta: { normalized: true as const, source_event_type: 'ANOMALY' },
+          _meta: { normalized: true as const, source_event_type: 'TASK_HANDOFF' },
         },
       ]
     }

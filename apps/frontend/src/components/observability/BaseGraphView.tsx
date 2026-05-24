@@ -37,7 +37,6 @@ export function BaseGraphView({
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        fitView
         onNodeClick={onNodeClick}
         onNodeDragStop={onNodeDragStop}
         onEdgeClick={onEdgeClick}
@@ -45,6 +44,7 @@ export function BaseGraphView({
         proOptions={{ hideAttribution: true }}
         minZoom={0.3}
         maxZoom={1.8}
+        defaultViewport={{ x: 20, y: 20, zoom: 0.6 }}
       >
         <Background color={backgroundColor} gap={backgroundGap} />
         <Controls />

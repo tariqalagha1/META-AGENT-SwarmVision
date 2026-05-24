@@ -47,28 +47,51 @@ const PANEL_WIDTH = 740
 const PANEL_HEIGHT = 420
 const ACTIVITY_WINDOW_MS = 2000
 
-function stableNodePosition(
-  nodeId: string,
-  radius: number = 260,
-  jitterAmount: number = 40,
-): { x: number; y: number } {
-  // FNV-1a 32-bit hash — deterministic, good distribution for short strings
+// ── Hierarchical pipeline layout ─────────────────────────────────────────────
+// Tier 0: intake-agent (entry point)
+// Tier 1: agent-0..5  (workers, spread vertically)
+// Tier 2: dispatch-agent (exit point)
+// Tier 3: hitl-agent (escalation)
+// Unknown agents fall back to FNV-1a circle layout at tier 2
+
+// ── Hierarchical pipeline layout ─────────────────────────────────────────────
+// Left-to-right: intake (T0) → workers (T1) → dispatch (T2) → hitl (T3)
+// All Y values centered around 0 so React Flow fitView works cleanly.
+
+// Left-to-right pipeline layout — all positions use positive coordinates.
+// intake(T0) → workers(T1) → dispatch(T2) → hitl(T3)
+const TIER_X: Record<number, number> = { 0: 60, 1: 280, 2: 500, 3: 680 }
+const WORKER_IDS = ['agent-0', 'agent-1', 'agent-2', 'agent-3', 'agent-4', 'agent-5']
+const Y_CENTER = 260
+// 6 workers, 90px gap, centered around Y_CENTER
+const WORKER_Y_POSITIONS = [
+  Y_CENTER - 225,
+  Y_CENTER - 135,
+  Y_CENTER - 45,
+  Y_CENTER + 45,
+  Y_CENTER + 135,
+  Y_CENTER + 225,
+]
+
+function stableNodePosition(nodeId: string): { x: number; y: number } {
+  if (nodeId === 'intake-agent')   return { x: TIER_X[0], y: Y_CENTER }
+  if (nodeId === 'dispatch-agent') return { x: TIER_X[2], y: Y_CENTER }
+  if (nodeId === 'hitl-agent')     return { x: TIER_X[3], y: Y_CENTER }
+  // system/orchestrator node → above intake
+  if (nodeId === 'system')         return { x: TIER_X[0], y: Y_CENTER - 120 }
+
+  const workerIdx = WORKER_IDS.indexOf(nodeId)
+  if (workerIdx >= 0) {
+    return { x: TIER_X[1], y: WORKER_Y_POSITIONS[workerIdx] }
+  }
+
+  // Unknown agent → hash to a position near tier 2
   let h = 2166136261
   for (let i = 0; i < nodeId.length; i++) {
     h = Math.imul(h ^ nodeId.charCodeAt(i), 16777619)
   }
-
-  // Two independent fractions: one for angle, one for radius jitter
-  const hashA = (h >>> 0) / 0xffffffff
-  const hashB = ((Math.imul(h, 2654435761) >>> 0) / 0xffffffff)
-
-  const angle = hashA * Math.PI * 2
-  const effectiveRadius = radius + (hashB - 0.5) * 2 * jitterAmount
-
-  return {
-    x: Math.cos(angle) * effectiveRadius,
-    y: Math.sin(angle) * effectiveRadius,
-  }
+  const angle = ((h >>> 0) / 0xffffffff) * Math.PI * 2
+  return { x: TIER_X[2] + Math.cos(angle) * 100, y: Y_CENTER + Math.sin(angle) * 100 }
 }
 
 export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphPanelProps) {
@@ -166,8 +189,8 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
     const now = Date.now()
     return new Map(
       graphData.nodes.map((node) => {
-        const position = baseNodePositions.get(node.id) ?? { x: PANEL_WIDTH / 2, y: PANEL_HEIGHT / 2 }
-        const persistedPosition = node.position ?? position
+        // Always use the tier layout — never let a stale stored position override it
+        const persistedPosition = baseNodePositions.get(node.id) ?? { x: PANEL_WIDTH / 2, y: PANEL_HEIGHT / 2 }
         const recentlyActive = now - node.lastEventTimestamp <= ACTIVITY_WINDOW_MS
         const motionState = runtimeNodeState(node.id)
 
@@ -420,6 +443,29 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
     const timeout = window.setTimeout(() => setSyncMessage(null), 1400)
     return () => window.clearTimeout(timeout)
   }, [events, selectedEventId])
+
+  // Auto-fit the viewport once node count stabilizes.
+  // We track the count in a ref; the timer resets on each new arrival.
+  // After 600ms of no new nodes, fire a single fitView.
+  // Once fitView has fired for a given count we don't refire for the same count.
+  const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fittedForCountRef = useRef(0)
+  useEffect(() => {
+    if (nodes.length === 0) return
+    if (fitTimerRef.current !== null) clearTimeout(fitTimerRef.current)
+    fitTimerRef.current = window.setTimeout(() => {
+      fitTimerRef.current = null
+      if (fittedForCountRef.current === nodes.length) return
+      fittedForCountRef.current = nodes.length
+      const instance = reactFlowRef.current as unknown as {
+        fitView?: (options?: { duration?: number; padding?: number }) => void
+      } | null
+      instance?.fitView?.({ duration: 350, padding: 0.15 })
+    }, 600)
+    return () => {
+      if (fitTimerRef.current !== null) clearTimeout(fitTimerRef.current)
+    }
+  }, [nodes.length])
 
   useEffect(() => {
     if (!focusTraceId) return
