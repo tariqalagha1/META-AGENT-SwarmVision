@@ -54,38 +54,37 @@ const ACTIVITY_WINDOW_MS = 2000
 // Tier 3: hitl-agent (escalation)
 // Unknown agents fall back to FNV-1a circle layout at tier 2
 
-// ── Hierarchical pipeline layout ─────────────────────────────────────────────
-// Left-to-right: intake (T0) → workers (T1) → dispatch (T2) → hitl (T3)
-// All Y values centered around 0 so React Flow fitView works cleanly.
-
-// Left-to-right pipeline layout — all positions use positive coordinates.
-// intake(T0) → workers(T1) → dispatch(T2) → hitl(T3)
-const TIER_X: Record<number, number> = { 0: 60, 1: 280, 2: 500, 3: 680 }
+// Left-to-right pipeline: intake(T0) → workers(T1) → dispatch(T2) → hitl(T3)
+// Left-to-right pipeline: intake(T0) → workers(T1) → dispatch(T2) → hitl(T3)
+// The canvas starts below the floating controls (CSS top: 290px) so Y coords
+// map directly to visible space. X 40–600 fits inside 730px at zoom ~0.9.
+const TIER_X: Record<number, number> = { 0: 40, 1: 240, 2: 440, 3: 600 }
 const WORKER_IDS = ['agent-0', 'agent-1', 'agent-2', 'agent-3', 'agent-4', 'agent-5']
-const Y_CENTER = 260
-// 6 workers, 90px gap, centered around Y_CENTER
+const Y_CENTER = 200
+// 6 workers × 64px gap — Y span 40–360, fits in 408px canvas at any zoom
 const WORKER_Y_POSITIONS = [
-  Y_CENTER - 225,
-  Y_CENTER - 135,
-  Y_CENTER - 45,
-  Y_CENTER + 45,
-  Y_CENTER + 135,
-  Y_CENTER + 225,
+  Y_CENTER - 160,
+  Y_CENTER - 96,
+  Y_CENTER - 32,
+  Y_CENTER + 32,
+  Y_CENTER + 96,
+  Y_CENTER + 160,
 ]
+
+// Node IDs that are infrastructure artifacts — excluded from the pipeline graph
+const EXCLUDED_NODE_IDS = new Set(['system'])
 
 function stableNodePosition(nodeId: string): { x: number; y: number } {
   if (nodeId === 'intake-agent')   return { x: TIER_X[0], y: Y_CENTER }
   if (nodeId === 'dispatch-agent') return { x: TIER_X[2], y: Y_CENTER }
   if (nodeId === 'hitl-agent')     return { x: TIER_X[3], y: Y_CENTER }
-  // system/orchestrator node → above intake
-  if (nodeId === 'system')         return { x: TIER_X[0], y: Y_CENTER - 120 }
 
   const workerIdx = WORKER_IDS.indexOf(nodeId)
   if (workerIdx >= 0) {
     return { x: TIER_X[1], y: WORKER_Y_POSITIONS[workerIdx] }
   }
 
-  // Unknown agent → hash to a position near tier 2
+  // Unknown agent → hash to a position near dispatch tier
   let h = 2166136261
   for (let i = 0; i < nodeId.length; i++) {
     h = Math.imul(h ^ nodeId.charCodeAt(i), 16777619)
@@ -180,6 +179,7 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
   const baseNodePositions = useMemo(() => {
     const positions = new Map<string, { x: number; y: number }>()
     for (const node of graphData.nodes) {
+      if (EXCLUDED_NODE_IDS.has(node.id)) continue
       positions.set(node.id, stableNodePosition(node.id))
     }
     return positions
@@ -188,7 +188,9 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
   const nextNodeMap = useMemo(() => {
     const now = Date.now()
     return new Map(
-      graphData.nodes.map((node) => {
+      graphData.nodes
+        .filter((node) => !EXCLUDED_NODE_IDS.has(node.id))
+        .map((node) => {
         // Always use the tier layout — never let a stale stored position override it
         const persistedPosition = baseNodePositions.get(node.id) ?? { x: PANEL_WIDTH / 2, y: PANEL_HEIGHT / 2 }
         const recentlyActive = now - node.lastEventTimestamp <= ACTIVITY_WINDOW_MS
@@ -243,7 +245,9 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
 
   const nextEdgeMap = useMemo(() => {
     const mapped = new Map(
-      graphData.edges.map((edge) => {
+      graphData.edges
+        .filter((edge) => !EXCLUDED_NODE_IDS.has(edge.source) && !EXCLUDED_NODE_IDS.has(edge.target))
+        .map((edge) => {
         const edgeToken = eventTypeTokens[edge.interactionType] ?? defaultEventTypeToken
         const motionState = runtimeEdgeState(edge.source, edge.target)
         const isFlowing = motionState === 'flowing'
@@ -260,17 +264,11 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
           source: edge.source,
           target: edge.target,
           animated: !safeMode && (isFlowing || isRetrying),
-          label: edge.interactionType,
           style: {
             stroke: strokeColor,
             strokeWidth: isFailed || isRetrying ? 2.8 : 2.2,
             strokeDasharray: isFlowing ? '6 4' : isRetrying ? '2 6' : undefined,
             opacity: isCompleted ? 0.45 : 1,
-          },
-          labelStyle: {
-            fill: strokeColor,
-            fontSize: 10,
-            fontWeight: 600,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
@@ -278,6 +276,7 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
           },
           data: {
             terminalEventId: edge.terminalEventId,
+            interactionType: edge.interactionType,
           },
         }
 
@@ -293,7 +292,6 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
           id: loopId,
           source: nodeId,
           target: nodeId,
-          label: 'retry',
           animated: true,
           className: 'ov-retry-loop',
           style: {
@@ -448,19 +446,16 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
   // We track the count in a ref; the timer resets on each new arrival.
   // After 600ms of no new nodes, fire a single fitView.
   // Once fitView has fired for a given count we don't refire for the same count.
-  const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fittedForCountRef = useRef(0)
+  const fitTimerRef = useRef<number | null>(null)
   useEffect(() => {
     if (nodes.length === 0) return
     if (fitTimerRef.current !== null) clearTimeout(fitTimerRef.current)
     fitTimerRef.current = window.setTimeout(() => {
       fitTimerRef.current = null
-      if (fittedForCountRef.current === nodes.length) return
-      fittedForCountRef.current = nodes.length
       const instance = reactFlowRef.current as unknown as {
         fitView?: (options?: { duration?: number; padding?: number }) => void
       } | null
-      instance?.fitView?.({ duration: 350, padding: 0.15 })
+      instance?.fitView?.({ duration: 350, padding: 0.05 })
     }, 600)
     return () => {
       if (fitTimerRef.current !== null) clearTimeout(fitTimerRef.current)

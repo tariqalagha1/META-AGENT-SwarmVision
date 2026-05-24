@@ -396,7 +396,7 @@
 .ov-immersive-canvas {
   position: absolute;
   inset: 0;
-  padding-top: 0;
+  top: 290px;
   perspective: 1200px;
 }
 
