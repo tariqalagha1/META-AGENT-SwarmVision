@@ -263,16 +263,19 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
           id: edge.key,
           source: edge.source,
           target: edge.target,
+          type: 'smoothstep',   // routes around nodes, avoids crossing tangled beziers
           animated: !safeMode && (isFlowing || isRetrying),
           style: {
             stroke: strokeColor,
-            strokeWidth: isFailed || isRetrying ? 2.8 : 2.2,
-            strokeDasharray: isFlowing ? '6 4' : isRetrying ? '2 6' : undefined,
-            opacity: isCompleted ? 0.45 : 1,
+            strokeWidth: isFailed || isRetrying ? 2.5 : 1.8,
+            strokeDasharray: isRetrying ? '2 6' : undefined,
+            opacity: isCompleted ? 0.4 : 0.85,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             color: strokeColor,
+            width: 16,
+            height: 16,
           },
           data: {
             terminalEventId: edge.terminalEventId,
@@ -442,21 +445,30 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
     return () => window.clearTimeout(timeout)
   }, [events, selectedEventId])
 
-  // Auto-fit the viewport once node count stabilizes.
-  // We track the count in a ref; the timer resets on each new arrival.
-  // After 600ms of no new nodes, fire a single fitView.
-  // Once fitView has fired for a given count we don't refire for the same count.
+  // Auto-fit ONCE when nodes first populate, then never again.
+  // If the user manually pans/zooms we must not reset their viewport.
+  const hasFittedRef = useRef(false)
+  const userInteractedRef = useRef(false)
   const fitTimerRef = useRef<number | null>(null)
+
+  const handleMoveStart = useCallback(() => {
+    userInteractedRef.current = true
+  }, [])
+
   useEffect(() => {
     if (nodes.length === 0) return
+    if (hasFittedRef.current) return       // already fitted — don't override user's zoom
+    if (userInteractedRef.current) return  // user already panned — leave it
     if (fitTimerRef.current !== null) clearTimeout(fitTimerRef.current)
     fitTimerRef.current = window.setTimeout(() => {
       fitTimerRef.current = null
+      if (hasFittedRef.current || userInteractedRef.current) return
       const instance = reactFlowRef.current as unknown as {
         fitView?: (options?: { duration?: number; padding?: number }) => void
       } | null
-      instance?.fitView?.({ duration: 350, padding: 0.05 })
-    }, 600)
+      instance?.fitView?.({ duration: 400, padding: 0.05 })
+      hasFittedRef.current = true
+    }, 800)
     return () => {
       if (fitTimerRef.current !== null) clearTimeout(fitTimerRef.current)
     }
@@ -465,12 +477,13 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
   useEffect(() => {
     if (!focusTraceId) return
     if (focusedAgentIds.size === 0) return
+    if (userInteractedRef.current) return  // user is panning — don't override their viewport
     const instance = reactFlowRef.current as unknown as {
       fitView?: (options?: { nodes?: Array<{ id: string }>; duration?: number; padding?: number }) => void
     } | null
     if (!instance?.fitView) return
-    const nodes = Array.from(focusedAgentIds).map((id) => ({ id }))
-    instance.fitView({ nodes, duration: 380, padding: 0.25 })
+    const focusNodes = Array.from(focusedAgentIds).map((id) => ({ id }))
+    instance.fitView({ nodes: focusNodes, duration: 380, padding: 0.25 })
   }, [focusTraceId, focusedAgentIds])
 
   const exportJson = useCallback(() => {
@@ -526,6 +539,7 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
             onNodeDragStop={handleNodeDragStopForMode}
             onEdgeClick={handleEdgeClickForMode}
             onInit={handleFlowInit}
+            onMoveStart={handleMoveStart}
           />
         )
       case 'PIPELINE':
@@ -541,6 +555,7 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
             onNodeDragStop={handleNodeDragStopForMode}
             onEdgeClick={handleEdgeClickForMode}
             onInit={handleFlowInit}
+            onMoveStart={handleMoveStart}
           />
         )
     }

@@ -8,6 +8,7 @@ type ObservabilityGraphProps = {
   onNodeDragStop: NodeMouseHandler<Node>
   onEdgeClick: EdgeMouseHandler<Edge>
   onInit?: (instance: ReactFlowInstance) => void
+  onMoveStart?: () => void
 }
 
 export function ObservabilityGraph({
@@ -17,6 +18,7 @@ export function ObservabilityGraph({
   onNodeDragStop,
   onEdgeClick,
   onInit,
+  onMoveStart,
 }: ObservabilityGraphProps) {
   return (
     <BaseGraphView
@@ -26,6 +28,7 @@ export function ObservabilityGraph({
       onNodeDragStop={onNodeDragStop}
       onEdgeClick={onEdgeClick}
       onInit={onInit}
+      onMoveStart={onMoveStart}
       className="ov-graph-canvas-observability"
       backgroundColor="#223A5E"
       backgroundGap={24}

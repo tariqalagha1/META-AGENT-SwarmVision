@@ -19,6 +19,7 @@ type BaseGraphViewProps = {
   backgroundColor: string
   backgroundGap: number
   onInit?: (instance: ReactFlowInstance) => void
+  onMoveStart?: () => void
 }
 
 export function BaseGraphView({
@@ -31,6 +32,7 @@ export function BaseGraphView({
   backgroundColor,
   backgroundGap,
   onInit,
+  onMoveStart,
 }: BaseGraphViewProps) {
   return (
     <div className={`ov-graph-wrapper ${className}`}>
@@ -41,9 +43,10 @@ export function BaseGraphView({
         onNodeDragStop={onNodeDragStop}
         onEdgeClick={onEdgeClick}
         onInit={onInit}
+        onMoveStart={onMoveStart}
         proOptions={{ hideAttribution: true }}
-        minZoom={0.3}
-        maxZoom={1.8}
+        minZoom={0.25}
+        maxZoom={2.0}
         defaultViewport={{ x: 20, y: 20, zoom: 0.6 }}
       >
         <Background color={backgroundColor} gap={backgroundGap} />
