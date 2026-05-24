@@ -105,7 +105,7 @@ export function ExecutionTimelinePanel({ disconnected }: ExecutionTimelinePanelP
         <p>Trace {selectedTraceId}</p>
       </header>
 
-      {disconnected ? <div className="ov-panel-overlay">Disconnected</div> : null}
+      {disconnected && timelineEvents.length === 0 ? <div className="ov-panel-overlay">Disconnected</div> : null}
 
       <div className="ov-timeline-list" role="list">
         {timelineEvents.length > VIRTUALIZATION_THRESHOLD ? (

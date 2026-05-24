@@ -50,13 +50,16 @@ interface ObserveTabProps {
 }
 
 function ObserveTab({ eventsConnected, followLatest, onToggleFollowLatest, tenantId, appId }: ObserveTabProps) {
+  const eventCount = useObservabilityStore((s) => s.eventOrder.length)
+  const hasMockData = eventCount > 0
+
   return (
     <div className="app-tab-content observe-content">
       <RunIntelligenceStrip
         followLatest={followLatest}
         onToggleFollowLatest={onToggleFollowLatest}
       />
-      {!eventsConnected && (
+      {!eventsConnected && !hasMockData && (
         <div className="app-disconnect-banner">
           Disconnected from events channel. Panels are showing the last snapshot.
         </div>

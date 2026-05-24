@@ -82,6 +82,7 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
   const selectedEventId = useObservabilityStore((s) => s.selectedEventId)
   const traces = useObservabilityStore((s) => s.traces)
   const events = useObservabilityStore((s) => s.events)
+  const eventCount = useObservabilityStore((s) => s.eventOrder.length)
   const safeMode = useObservabilityStore((s) => s.safeMode)
   const graphMode = useObservabilityStore((s) => s.graphMode)
   const filters = useObservabilityStore((s) => s.filters)
@@ -535,7 +536,10 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
         </div>
       ) : null}
 
-      {disconnected ? <div className="ov-panel-overlay">Disconnected</div> : null}
+      {disconnected && (eventCount === 0
+        ? <div className="ov-panel-overlay">Disconnected</div>
+        : <div className="ov-panel-offline-badge">● OFFLINE — mock data</div>
+      )}
       {syncMessage ? <div className="ov-sync-tooltip">{syncMessage}</div> : null}
 
       <div className="ov-immersive-canvas">{renderModeGraph(graphMode)}</div>
