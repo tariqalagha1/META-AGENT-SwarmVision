@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'swarmvision-dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET ?? '';
 
 export interface AuthPayload {
   viewer_id: string;
@@ -23,6 +23,10 @@ export function authMiddleware(
 
   const token = header.slice(7);
   try {
+    if (!JWT_SECRET) {
+      res.status(500).json({ error: 'JWT_SECRET is not configured' });
+      return;
+    }
     const payload = jwt.verify(token, JWT_SECRET) as AuthPayload;
     (req as Request & { auth: AuthPayload }).auth = payload;
     next();
@@ -43,5 +47,8 @@ export function requireRole(...roles: AuthPayload['role'][]) {
 }
 
 export function issueToken(viewer_id: string, role: AuthPayload['role']): string {
+  if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET is not configured');
+  }
   return jwt.sign({ viewer_id, role }, JWT_SECRET, { expiresIn: '8h' });
 }

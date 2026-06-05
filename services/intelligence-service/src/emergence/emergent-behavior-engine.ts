@@ -24,7 +24,7 @@ export function analyzeEmergentBehavior(
   windowMs: number,
 ): EmergentBehaviorReport {
   const now = Date.now();
-  const sorted = [...events].sort((a, b) => a.timestamp_ms - b.timestamp_ms);
+  const sorted = [...events].sort((a, b) => eventMs(a) - eventMs(b));
 
   const agents = uniqueAgents(sorted);
   const graph  = buildCollaborationGraph(sorted, agents);
@@ -67,13 +67,13 @@ function buildCollaborationGraph(events: SwarmEvent[], agents: string[]): Collab
     const e = edgeMap.get(key) ?? { count: 0, latencies: [], ok: 0 };
 
     // Estimate latency: look for next TASK_COMPLETED from toAgent after this handoff
-    const handoffTs = ev.timestamp_ms;
+    const handoffTs = eventMs(ev);
     const nextCompletion = events.find(
       x => x.agent_id === toAgent &&
            x.event_type === "TASK_COMPLETED" &&
-           x.timestamp_ms > handoffTs,
+           eventMs(x) > handoffTs,
     );
-    if (nextCompletion) e.latencies.push(nextCompletion.timestamp_ms - handoffTs);
+    if (nextCompletion) e.latencies.push(eventMs(nextCompletion) - handoffTs);
     e.count++;
     e.ok++;
 
@@ -168,12 +168,16 @@ function computeSynchronizationQuality(events: SwarmEvent[], agents: string[]): 
   let syncedPairs = 0;
   let totalPairs  = 0;
   for (let i = 0; i < completions.length; i++) {
+    const left = completions[i];
+    if (!left) continue;
     for (let j = i + 1; j < completions.length; j++) {
-      if (completions[j].timestamp_ms - completions[i].timestamp_ms > SYNC_WINDOW_MS * 4) break;
+      const right = completions[j];
+      if (!right) continue;
+      if (eventMs(right) - eventMs(left) > SYNC_WINDOW_MS * 4) break;
       totalPairs++;
       if (
-        completions[j].timestamp_ms - completions[i].timestamp_ms <= SYNC_WINDOW_MS &&
-        completions[i].agent_id !== completions[j].agent_id
+        eventMs(right) - eventMs(left) <= SYNC_WINDOW_MS &&
+        left.agent_id !== right.agent_id
       ) syncedPairs++;
     }
   }
@@ -224,9 +228,12 @@ function detectRetryPattern(events: SwarmEvent[], agents: string[]): EmergentRet
   let propagated = 0;
   for (let i = 0; i < retryEvs.length; i++) {
     for (let j = i + 1; j < retryEvs.length; j++) {
-      const lag = retryEvs[j].timestamp_ms - retryEvs[i].timestamp_ms;
+      const left = retryEvs[i];
+      const right = retryEvs[j];
+      if (!left || !right) continue;
+      const lag = eventMs(right) - eventMs(left);
       if (lag > 2000) break;
-      if (retryEvs[i].agent_id !== retryEvs[j].agent_id) { propagated++; break; }
+      if (left.agent_id !== right.agent_id) { propagated++; break; }
     }
   }
   const propagationCoeff = retryEvs.length > 0 ? propagated / retryEvs.length : 0;
@@ -234,7 +241,10 @@ function detectRetryPattern(events: SwarmEvent[], agents: string[]): EmergentRet
   // Avg lag between consecutive retries
   const lags: number[] = [];
   for (let i = 1; i < retryEvs.length; i++) {
-    lags.push(retryEvs[i].timestamp_ms - retryEvs[i - 1].timestamp_ms);
+    const curr = retryEvs[i];
+    const prev = retryEvs[i - 1];
+    if (!curr || !prev) continue;
+    lags.push(eventMs(curr) - eventMs(prev));
   }
   const avgLag = lags.length ? avg(lags) : 0;
 
@@ -272,8 +282,8 @@ function detectAnomalyPropagation(events: SwarmEvent[], agents: string[]): Anoma
   const blastRadius    = agents.length > 0 ? affectedAgents.size / agents.length : 0;
 
   // Speed: ms between first and last anomaly divided by number of hops
-  const firstMs = anomalies[0].timestamp_ms;
-  const lastMs  = anomalies[anomalies.length - 1].timestamp_ms;
+  const firstMs = eventMs(anomalies[0]!);
+  const lastMs  = eventMs(anomalies[anomalies.length - 1]!);
   const hops    = Math.max(affectedAgents.size - 1, 1);
   const speedMs = (lastMs - firstMs) / hops;
 
@@ -378,4 +388,8 @@ function clamp01(v: number): number {
 
 function round2(v: number): number {
   return Math.round(v * 100) / 100;
+}
+
+function eventMs(ev: SwarmEvent): number {
+  return ev.timestamp_ms ?? ev.offset_ms ?? 0;
 }

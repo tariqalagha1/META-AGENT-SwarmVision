@@ -161,7 +161,7 @@ export class ExecutiveSummaryGenerator {
     // Peak: highest-density period
     const peakEvent = findPeakDensityOffset(window.events);
     if (peakEvent > rampEnd) {
-      entries.push({ offset_ms: peakEvent, label: 'Peak orchestration activity', phase: 'peak_operation' });
+      entries.push({ offset_ms: peakEvent, label: 'Peak orchestration activity', phase: 'peak' });
     }
 
     // Incidents

@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { WebSocketEvent } from '../types/observability'
+import { normalizeProvenanceEvent, type WebSocketEvent } from '../types/observability'
 
 export type { WebSocketEvent }
 
@@ -86,7 +86,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
 
       ws.current.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data) as WebSocketEvent
+          const data = normalizeProvenanceEvent(JSON.parse(event.data) as WebSocketEvent)
           
           // Skip ping/pong messages in event count
           if (data.type && !data.type.includes('ping') && !data.type.includes('ACKNOWLEDGED')) {

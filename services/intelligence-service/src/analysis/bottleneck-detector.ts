@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Bottleneck, BottleneckKind } from '../types';
-import { ScoringWindow, ScoringEvent, AgentEfficiencyScore } from '../scoring/health-scorer';
+import { Bottleneck, BottleneckKind, AgentEfficiencyScore } from '../types';
+import { ScoringWindow, ScoringEvent } from '../scoring/health-scorer';
 
 const RETRY_TYPES   = new Set(['TASK_RETRY', 'AGENT_RETRY', 'CIRCUIT_BREAKER_HALF_OPEN']);
 const ANOMALY_TYPES = new Set(['ANOMALY_DETECTED', 'CIRCUIT_BREAKER_OPEN', 'AGENT_TIMEOUT', 'QUEUE_OVERFLOW']);

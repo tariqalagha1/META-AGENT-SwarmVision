@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useObservabilityStore } from '../../store'
+import { withApiScope } from '../../lib/requestContext'
 import './AgentEcosystemPanel.css'
 
 // ─── Canvas dimensions ────────────────────────────────────────────────────────
@@ -114,6 +115,10 @@ interface SimRef {
 
 interface AgentEcosystemPanelProps {
   apiBaseUrl: string
+  tenantId?: string
+  appId?: string
+  appName?: string
+  authHeaders: Record<string, string>
   onClose:    () => void
 }
 
@@ -153,7 +158,14 @@ function canvasPos(
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function AgentEcosystemPanel({ apiBaseUrl, onClose }: AgentEcosystemPanelProps): JSX.Element {
+export function AgentEcosystemPanel({
+  apiBaseUrl,
+  tenantId,
+  appId,
+  appName,
+  authHeaders,
+  onClose,
+}: AgentEcosystemPanelProps): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef    = useRef<number>(0)
 
@@ -305,11 +317,17 @@ export function AgentEcosystemPanel({ apiBaseUrl, onClose }: AgentEcosystemPanel
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch(`${apiBaseUrl}/agents/registry`)
+        const res = await fetch(
+          withApiScope(`${apiBaseUrl}/agents/registry`, { tenantId, appId, appName }),
+          { headers: authHeaders },
+        )
         if (!res.ok) return
         const data = (await res.json()) as { agents: RegistryAgent[] }
         const sim  = simRef.current
-        data.agents.forEach(ra => {
+        const scopedAgents = appId
+          ? data.agents.filter((ra) => ra.source_app === appId)
+          : data.agents
+        scopedAgents.forEach(ra => {
           if (!sim.agents.has(ra.agent_id)) {
             const angle = Math.random() * Math.PI * 2
             const r     = 150 + Math.random() * 200
@@ -334,13 +352,13 @@ export function AgentEcosystemPanel({ apiBaseUrl, onClose }: AgentEcosystemPanel
             agent.description  = ra.description ?? ''
           }
         })
-        setRegistryAgents(data.agents)
+        setRegistryAgents(scopedAgents)
       } catch { /* ignore */ }
     }
     void poll()
     const interval = setInterval(() => void poll(), 10000)
     return () => clearInterval(interval)
-  }, [apiBaseUrl])
+  }, [apiBaseUrl, appId, appName, authHeaders, tenantId])
 
   // ── Flush inspector display every 400ms ───────────────────────────────────
   useEffect(() => {

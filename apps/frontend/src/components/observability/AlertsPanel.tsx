@@ -4,6 +4,8 @@ import { useAnomalyEvents, useObservabilityStore, usePausedSnapshot } from '../.
 import type { WebSocketEvent } from '../../types/observability'
 import { EmptyStateCard } from './EmptyStateCard'
 import { AlertRow } from './AlertRow'
+import { TruthBadge } from '../truth/TruthBadge'
+import { getTruthClassFromEvent } from '../../store'
 import './ObservabilityPanels.css'
 
 const VIRTUALIZATION_THRESHOLD = 150
@@ -45,6 +47,7 @@ export function AlertsPanel() {
         .slice(0, ALERT_CAP),
     [alerts]
   )
+  const primaryTruth = useMemo(() => getTruthClassFromEvent(visibleAlerts[0]), [visibleAlerts])
 
   const hasAlerts = visibleAlerts.length > 0
   const disconnected = connection !== 'CONNECTED'
@@ -67,6 +70,7 @@ export function AlertsPanel() {
       <section className="ov-panel ov-panel-alerts" aria-label="Alerts panel">
         <header className="ov-panel-header ov-alerts-header">
           <h2>Alerts</h2>
+          <TruthBadge truthClass={primaryTruth} />
           <span className="ov-alert-count-pill">0</span>
         </header>
         <EmptyStateCard
@@ -91,6 +95,7 @@ export function AlertsPanel() {
           >
             Alerts
           </button>
+          <TruthBadge truthClass={primaryTruth} />
           <span className="ov-alert-count-pill">0</span>
         </header>
 
@@ -114,6 +119,7 @@ export function AlertsPanel() {
       <header className="ov-panel-header ov-alerts-header">
         <h2>Alerts</h2>
         <div className="ov-alerts-header-right">
+          <TruthBadge truthClass={primaryTruth} />
           {disconnected ? <span className="ov-alerts-disconnected">Disconnected</span> : null}
           <span className="ov-alert-count-pill">{visibleAlerts.length}</span>
         </div>

@@ -54,6 +54,10 @@ def _base_event(
         "parent_event_id": parent_event_id,
         "agent_id": agent_id,
         "source": "swarm-runner",
+        "source_component": "swarm_runner",
+        "source_type": "runtime",
+        "trust_level": "verified",
+        "persistence_status": "live_unpersisted",
         "payload": {
             "step_name": step_name,
             **(payload or {}),

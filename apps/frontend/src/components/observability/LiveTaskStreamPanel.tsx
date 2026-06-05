@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
 import { useObservabilityStore } from '../../store'
+import { getTruthClassFromEvent } from '../../store'
 import { formatTimestamp } from '../../utils/formatTimestamp'
 import { EmptyStateCard } from './EmptyStateCard'
+import { TruthBadge } from '../truth/TruthBadge'
 import './ObservabilityPanels.css'
 
 const STREAM_TYPES = new Set([
@@ -46,6 +48,7 @@ export function LiveTaskStreamPanel() {
       .map((id) => events[id])
       .filter((event) => Boolean(event) && STREAM_TYPES.has(String(event.event_type)))
   }, [events, runHistory, selectedTraceId, traces])
+  const primaryTruth = getTruthClassFromEvent(streamEvents[0])
 
   return (
     <section className="ov-panel ov-panel-task-stream" aria-label="Live task stream panel">
@@ -54,7 +57,10 @@ export function LiveTaskStreamPanel() {
           <h2>Live Task Stream</h2>
           <p>{selectedTraceId ? `Trace ${selectedTraceId}` : 'Select a trace to stream events'}</p>
         </div>
-        <span className="ov-alert-count-pill">{streamEvents.length}</span>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+          <TruthBadge truthClass={primaryTruth} />
+          <span className="ov-alert-count-pill">{streamEvents.length}</span>
+        </div>
       </header>
 
       <div className="ov-task-stream-list">

@@ -108,8 +108,8 @@ const initMockAgents = () => {
 const applyEvent = (event: VizEvent) => {
   setState((s) => {
     const p = event.payload
-    let agents = new Map(s.agents)
-    let tasks = new Map(s.tasks)
+    const agents = new Map(s.agents)
+    const tasks = new Map(s.tasks)
     const stats = { ...s.stats }
     let log = s.log
 
@@ -222,10 +222,20 @@ vizBridge.subscribe((event) => applyEvent(event))
 // Translates each VizEvent to a NormalizedEvent so the System Graph on the
 // Observe tab stays live even when the backend at :8012 is not running.
 
-let _mockTraceId = `mock-trace-${Date.now()}`
+const _mockTraceId = `mock-trace-${Date.now()}`
 let _mockEventSeq = 0
 
 const makeMockEventId = () => `mock-evt-${++_mockEventSeq}-${Date.now()}`
+const makeMockProvenance = (eventId: string, timestamp: number) => ({
+  event_id: eventId,
+  trace_id: _mockTraceId,
+  sequence_no: _mockEventSeq,
+  source_type: 'mock' as const,
+  source_component: 'vizBridge.mock',
+  trust_level: 'mock' as const,
+  persistence_status: 'live_unpersisted' as const,
+  timestamp: new Date(timestamp).toISOString(),
+})
 
 const MOCK_PAYLOAD_BASE = { source: 'viz-mock' }
 
@@ -257,6 +267,7 @@ const vizEventToNormalized = (event: VizEvent) => {
 
   switch (event.type) {
     case 'agent_move': {
+      const eventId = makeMockEventId()
       const agentId  = String(p['agentId']   ?? '')
       const fromZone = String(p['fromZone']   ?? '')
       const toZone   = String(p['toZone']     ?? '')
@@ -264,18 +275,21 @@ const vizEventToNormalized = (event: VizEvent) => {
       const targetAgentId = resolveTargetAgent(toZone)
       return [
         {
-          event_id: makeMockEventId(), id: makeMockEventId(),
+          event_id: eventId, id: eventId,
           event_type: 'TASK_HANDOFF', type: 'TASK_HANDOFF',
           timestamp: ts, trace_id: _mockTraceId,
+          source: 'viz-mock',
           agent_id: agentId,
           source_agent_id: agentId,
           target_agent_id: targetAgentId !== agentId ? targetAgentId : 'dispatch-agent',
           payload: { ...MOCK_PAYLOAD_BASE, fromZone, toZone, agentName: p['agentName'] },
+          provenance: makeMockProvenance(eventId, ts),
           _meta: { normalized: true as const, source_event_type: 'TASK_HANDOFF' },
         },
       ]
     }
     case 'task_spawn': {
+      const eventId = makeMockEventId()
       // intake-agent receives a new task and hands it to a random worker agent
       const agents = [...storeState.agents.values()].filter(a => a.id.startsWith('agent-'))
       const target = agents.length > 0
@@ -283,18 +297,21 @@ const vizEventToNormalized = (event: VizEvent) => {
         : 'agent-0'
       return [
         {
-          event_id: makeMockEventId(), id: makeMockEventId(),
+          event_id: eventId, id: eventId,
           event_type: 'TASK_HANDOFF', type: 'TASK_HANDOFF',
           timestamp: ts, trace_id: _mockTraceId,
+          source: 'viz-mock',
           agent_id: 'intake-agent',
           source_agent_id: 'intake-agent',
           target_agent_id: target,
           payload: { ...MOCK_PAYLOAD_BASE, taskId: p['taskId'], taskName: p['taskName'], zone: p['zone'] },
+          provenance: makeMockProvenance(eventId, ts),
           _meta: { normalized: true as const, source_event_type: 'TASK_HANDOFF' },
         },
       ]
     }
     case 'task_complete': {
+      const eventId = makeMockEventId()
       // A worker agent completes and hands off to dispatch
       const agents = [...storeState.agents.values()].filter(a => a.id.startsWith('agent-'))
       const source = agents.length > 0
@@ -302,41 +319,49 @@ const vizEventToNormalized = (event: VizEvent) => {
         : 'agent-0'
       return [
         {
-          event_id: makeMockEventId(), id: makeMockEventId(),
+          event_id: eventId, id: eventId,
           event_type: 'TASK_HANDOFF', type: 'TASK_HANDOFF',
           timestamp: ts, trace_id: _mockTraceId,
+          source: 'viz-mock',
           agent_id: 'dispatch-agent',
           source_agent_id: source,
           target_agent_id: 'dispatch-agent',
           payload: { ...MOCK_PAYLOAD_BASE, taskId: p['taskId'], fromZone: p['fromZone'] },
+          provenance: makeMockProvenance(eventId, ts),
           _meta: { normalized: true as const, source_event_type: 'TASK_HANDOFF' },
         },
       ]
     }
     case 'hitl_trigger': {
+      const eventId = makeMockEventId()
       // dispatch-agent escalates an anomaly to hitl-agent
       return [
         {
-          event_id: makeMockEventId(), id: makeMockEventId(),
+          event_id: eventId, id: eventId,
           event_type: 'TASK_HANDOFF', type: 'TASK_HANDOFF',
           timestamp: ts, trace_id: _mockTraceId,
+          source: 'viz-mock',
           agent_id: 'hitl-agent',
           source_agent_id: 'dispatch-agent',
           target_agent_id: 'hitl-agent',
           payload: { ...MOCK_PAYLOAD_BASE, severity: p['severity'], zone: p['zone'] },
+          provenance: makeMockProvenance(eventId, ts),
           _meta: { normalized: true as const, source_event_type: 'TASK_HANDOFF' },
         },
       ]
     }
     case 'decision': {
+      const eventId = makeMockEventId()
       const agentId = String(p['agent_id'] ?? 'system')
       return [
         {
-          event_id: makeMockEventId(), id: makeMockEventId(),
+          event_id: eventId, id: eventId,
           event_type: 'DECISION_EVENT', type: 'DECISION_EVENT',
           timestamp: ts, trace_id: _mockTraceId,
+          source: 'viz-mock',
           agent_id: agentId,
           payload: { ...MOCK_PAYLOAD_BASE, ...p },
+          provenance: makeMockProvenance(eventId, ts),
           _meta: { normalized: true as const, source_event_type: 'DECISION_EVENT' },
         },
       ]
@@ -347,12 +372,16 @@ const vizEventToNormalized = (event: VizEvent) => {
 }
 
 // Emit a SWARM_STARTED event once so the trace auto-selects in the graph
+const _swarmStartedEventId = makeMockEventId()
+const _swarmStartedTs = Date.now()
 const _swarmStartedEvt = {
-  event_id: makeMockEventId(), id: makeMockEventId(),
+  event_id: _swarmStartedEventId, id: _swarmStartedEventId,
   event_type: 'SWARM_STARTED', type: 'SWARM_STARTED',
-  timestamp: Date.now(), trace_id: _mockTraceId,
+  timestamp: _swarmStartedTs, trace_id: _mockTraceId,
+  source: 'viz-mock',
   agent_id: 'system',
   payload: { ...MOCK_PAYLOAD_BASE, task: 'Mock swarm demo' },
+  provenance: makeMockProvenance(_swarmStartedEventId, _swarmStartedTs),
   _meta: { normalized: true as const, source_event_type: 'SWARM_STARTED' },
 }
 setTimeout(() => {
@@ -371,3 +400,4 @@ export const useVizStore = <T,>(selector: Selector<T>): T =>
   useSyncExternalStore(subscribeStore, () => selector(getState()), () => selector(getState()))
 
 export const vizStore = { getState }
+

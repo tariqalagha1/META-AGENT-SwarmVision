@@ -215,7 +215,7 @@
   to   { stroke-dashoffset: 0; }
 }
 
-.react-flow__edge-path {
+.swarm-dag-canvas .react-flow__edge-path {
   stroke: #2dd4bf !important;
   stroke-width: 1.5 !important;
   stroke-dasharray: 6 12;
@@ -224,6 +224,6 @@
   animation: flowDash 1.2s linear infinite;
 }
 
-.react-flow__edge-path:hover {
+.swarm-dag-canvas .react-flow__edge-path:hover {
   opacity: 0.9;
 }

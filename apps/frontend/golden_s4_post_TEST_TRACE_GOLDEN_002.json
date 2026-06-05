@@ -1,0 +1,166 @@
+{
+  "trace_id": "7a36ef24-0790-422d-a08a-5316de570a10",
+  "status": "completed",
+  "steps": [
+    {
+      "agent_id": "fetch_agent",
+      "step_name": "fetch",
+      "status": "completed",
+      "input": {
+        "task": "TEST_TRACE_GOLDEN_002"
+      },
+      "output": {
+        "raw_items": [
+          {
+            "id": "item-1",
+            "text": "TEST_TRACE_GOLDEN_002 candidate 1"
+          },
+          {
+            "id": "item-2",
+            "text": "TEST_TRACE_GOLDEN_002 candidate 2"
+          },
+          {
+            "id": "item-3",
+            "text": "TEST_TRACE_GOLDEN_002 candidate 3"
+          }
+        ]
+      },
+      "error": null,
+      "started_at": "2026-05-29T18:32:17.006363Z",
+      "completed_at": "2026-05-29T18:32:17.011377Z"
+    },
+    {
+      "agent_id": "normalize_agent",
+      "step_name": "normalize",
+      "status": "completed",
+      "input": {
+        "raw_items": [
+          {
+            "id": "item-1",
+            "text": "TEST_TRACE_GOLDEN_002 candidate 1"
+          },
+          {
+            "id": "item-2",
+            "text": "TEST_TRACE_GOLDEN_002 candidate 2"
+          },
+          {
+            "id": "item-3",
+            "text": "TEST_TRACE_GOLDEN_002 candidate 3"
+          }
+        ]
+      },
+      "output": {
+        "normalized_items": [
+          {
+            "id": "item-1",
+            "text": "test_trace_golden_002 candidate 1"
+          },
+          {
+            "id": "item-2",
+            "text": "test_trace_golden_002 candidate 2"
+          },
+          {
+            "id": "item-3",
+            "text": "test_trace_golden_002 candidate 3"
+          }
+        ]
+      },
+      "error": null,
+      "started_at": "2026-05-29T18:32:17.019361Z",
+      "completed_at": "2026-05-29T18:32:17.023359Z"
+    },
+    {
+      "agent_id": "quality_agent",
+      "step_name": "quality",
+      "status": "completed",
+      "input": {
+        "normalized_items": [
+          {
+            "id": "item-1",
+            "text": "test_trace_golden_002 candidate 1"
+          },
+          {
+            "id": "item-2",
+            "text": "test_trace_golden_002 candidate 2"
+          },
+          {
+            "id": "item-3",
+            "text": "test_trace_golden_002 candidate 3"
+          }
+        ]
+      },
+      "output": {
+        "quality": {
+          "score": 100.0,
+          "item_count": 3
+        },
+        "final_items": [
+          {
+            "id": "item-1",
+            "text": "test_trace_golden_002 candidate 1"
+          },
+          {
+            "id": "item-2",
+            "text": "test_trace_golden_002 candidate 2"
+          },
+          {
+            "id": "item-3",
+            "text": "test_trace_golden_002 candidate 3"
+          }
+        ]
+      },
+      "error": null,
+      "started_at": "2026-05-29T18:32:17.025563Z",
+      "completed_at": "2026-05-29T18:32:17.025563Z"
+    }
+  ],
+  "final_output": {
+    "task": "TEST_TRACE_GOLDEN_002",
+    "raw_items": [
+      {
+        "id": "item-1",
+        "text": "TEST_TRACE_GOLDEN_002 candidate 1"
+      },
+      {
+        "id": "item-2",
+        "text": "TEST_TRACE_GOLDEN_002 candidate 2"
+      },
+      {
+        "id": "item-3",
+        "text": "TEST_TRACE_GOLDEN_002 candidate 3"
+      }
+    ],
+    "normalized_items": [
+      {
+        "id": "item-1",
+        "text": "test_trace_golden_002 candidate 1"
+      },
+      {
+        "id": "item-2",
+        "text": "test_trace_golden_002 candidate 2"
+      },
+      {
+        "id": "item-3",
+        "text": "test_trace_golden_002 candidate 3"
+      }
+    ],
+    "final_items": [
+      {
+        "id": "item-1",
+        "text": "test_trace_golden_002 candidate 1"
+      },
+      {
+        "id": "item-2",
+        "text": "test_trace_golden_002 candidate 2"
+      },
+      {
+        "id": "item-3",
+        "text": "test_trace_golden_002 candidate 3"
+      }
+    ],
+    "quality": {
+      "score": 100.0,
+      "item_count": 3
+    }
+  }
+}

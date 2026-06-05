@@ -152,8 +152,9 @@ export const useEcosystemTraceState = (trace_id: string | null): TraceState | nu
       console.log('STORE REF', ecosystemRuntimeStore)
     }
     if (import.meta.env.DEV) {
-      ;(globalThis as typeof globalThis & { __ecoStoreHookRef?: unknown }).__ecoStoreHookRef =
-        ecosystemRuntimeStore
+      void ((globalThis as typeof globalThis & { __ecoStoreHookRef?: unknown }).__ecoStoreHookRef = ecosystemRuntimeStore)
     }
     return trace_id ? getSnapshot().traces[trace_id] ?? null : null
   }, () => (trace_id ? getSnapshot().traces[trace_id] ?? null : null))
+
+

@@ -3,8 +3,7 @@ import {
   GovernanceAction, GovernanceActionKind, GovernanceTrigger,
   GovernanceDecision, RetryPolicy, ThrottlePolicy,
 } from './types';
-import { SwarmHealthReport, AgentEfficiencyScore } from '../scoring/health-scorer';
-import { DetectedIncident, Bottleneck } from '../types';
+import { SwarmHealthReport, AgentEfficiencyScore, DetectedIncident, Bottleneck } from '../types';
 
 // ─── Governance thresholds ────────────────────────────────────────────────────
 

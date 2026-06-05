@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useObservabilityStore } from '../../store'
 import { formatTimestamp } from '../../utils/formatTimestamp'
 import { EmptyStateCard } from './EmptyStateCard'
+import { withApiScope } from '../../lib/requestContext'
 import './ObservabilityPanels.css'
 
 type StageStatus = 'passed' | 'failed' | 'warning' | 'skipped'
@@ -41,6 +42,10 @@ type StoredDiagnosticRecord = {
 
 type DiagnosticsPanelProps = {
   apiBaseUrl: string
+  tenantId?: string
+  appId?: string
+  appName?: string
+  authHeaders: Record<string, string>
 }
 
 type FilterKind = 'ALL' | 'FAIL' | 'BLOCKED' | 'WARNING'
@@ -74,7 +79,7 @@ const normalizeReason = (details?: Record<string, unknown>) => {
   return '-'
 }
 
-export function DiagnosticsPanel({ apiBaseUrl }: DiagnosticsPanelProps) {
+export function DiagnosticsPanel({ apiBaseUrl, tenantId, appId, appName, authHeaders }: DiagnosticsPanelProps) {
   const selectedTraceId = useObservabilityStore((s) => s.selectedTraceId)
   const selectedRequestId = useObservabilityStore((s) => s.selectedRequestId)
   const selectRequest = useObservabilityStore((s) => s.selectRequest)
@@ -99,9 +104,13 @@ export function DiagnosticsPanel({ apiBaseUrl }: DiagnosticsPanelProps) {
       setLoadingList(true)
       setListError(null)
       try {
-        const response = await fetch(`${apiBaseUrl}/api/v1/diagnostics?limit=20`, {
+        const response = await fetch(
+          withApiScope(`${apiBaseUrl}/api/v1/diagnostics?limit=20`, { tenantId, appId, appName }),
+          {
+          headers: authHeaders,
           signal: controller.signal,
-        })
+          },
+        )
         if (!response.ok) throw new Error(`Failed to load diagnostics (${response.status})`)
         const payload = (await response.json()) as StoredDiagnosticRecord[]
         if (!active) return
@@ -120,7 +129,7 @@ export function DiagnosticsPanel({ apiBaseUrl }: DiagnosticsPanelProps) {
       active = false
       controller.abort()
     }
-  }, [apiBaseUrl])
+  }, [apiBaseUrl, authHeaders])
 
   useEffect(() => {
     if (eventOrder.length === 0) return
@@ -177,10 +186,11 @@ export function DiagnosticsPanel({ apiBaseUrl }: DiagnosticsPanelProps) {
       setLoadingDetail(true)
       setDetailError(null)
       try {
-        const response = await fetch(`${apiBaseUrl}/api/v1/diagnostics/${selectedId}`, {
+        const response = await fetch(withApiScope(`${apiBaseUrl}/api/v1/diagnostics/${selectedId}`, { tenantId, appId, appName }), {
+          headers: authHeaders,
           signal: controller.signal,
         })
-        if (!response.ok) throw new Error(`Failed to load diagnostic detail (${response.status})`)
+        if (!response.ok) throw new Error(`Failed to load diagnostics (${response.status})`)
         const payload = (await response.json()) as StoredDiagnosticRecord
         if (!active) return
         setDetail(payload)
@@ -198,7 +208,7 @@ export function DiagnosticsPanel({ apiBaseUrl }: DiagnosticsPanelProps) {
       active = false
       controller.abort()
     }
-  }, [apiBaseUrl, records, selectedId])
+  }, [apiBaseUrl, authHeaders, appId, appName, records, selectedId, tenantId])
 
   const visibleRecords = useMemo(() => {
     if (activeFilter === 'ALL') return records

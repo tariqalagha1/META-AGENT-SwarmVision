@@ -21,6 +21,11 @@ export interface SwarmHealthReport {
   agent_scores:   AgentEfficiencyScore[];
   bottlenecks:    Bottleneck[];
   incidents:      DetectedIncident[];
+
+  // Compatibility aggregate fields used by advanced modules.
+  total_retries?: number;
+  total_events?:  number;
+  anomaly_rate?:  number;
 }
 
 export interface AgentEfficiencyScore {
@@ -32,6 +37,24 @@ export interface AgentEfficiencyScore {
   avg_task_ms:        number | null;
   workload_share:     number;   // fraction of swarm total events
   is_bottleneck:      boolean;
+}
+
+// Shared event contract used by advanced analysis/evolution modules.
+// Keep this permissive to support heterogeneous event envelopes.
+export interface SwarmEvent {
+  event_id?:      string;
+  id:             string;
+  event_type:     string;
+  type?:          string;
+  agent_id:       string;
+  zone_id:        string;
+  channel?:       string;
+  offset_ms:      number;
+  timestamp?:     string | number;
+  timestamp_ms?:  number;
+  priority:       number;
+  data:           Record<string, unknown>;
+  payload?:       Record<string, unknown>;
 }
 
 // ─── Bottleneck detection ─────────────────────────────────────────────────────
@@ -75,6 +98,7 @@ export interface DetectedIncident {
   onset_ms:       number;
   predicted_escalation_ms: number | null;
   affected_agents: string[];
+  onset_agent?:    string | null;
   affected_zones:  string[];
   description:    string;
   signals:        IncidentSignal[];

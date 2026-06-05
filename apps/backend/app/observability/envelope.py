@@ -6,6 +6,9 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
+from app.core.settings import get_settings
+from app.ledger.schema import PersistenceStatus, SourceType, TrustLevel
+from app.ledger.service import ledger_service
 from app.observability.trace import get_trace_context
 
 
@@ -75,5 +78,51 @@ def enrich_event_payload(event: dict[str, Any]) -> dict[str, Any]:
         "previous_event_id": enriched.get("previous_event_id"),
         "parent_event_id": enriched.get("parent_event_id"),
         "step_index": enriched.get("step_index"),
+    }
+    settings = get_settings()
+    existing_provenance = enriched.get("provenance")
+    if existing_provenance:
+        existing_provenance = {
+            **existing_provenance,
+            "event_id": enriched["event_id"],
+            "trace_id": enriched["trace_id"],
+            "timestamp": enriched["timestamp"],
+        }
+        enriched["provenance"] = existing_provenance
+        return enriched
+
+    source_name = str(enriched.get("source", "unknown")).lower()
+    if source_name in {"viz-mock", "mock", "demo"}:
+        source_type = SourceType.mock
+        trust_level = TrustLevel.mock
+    elif source_name in {"meta-agent"}:
+        source_type = SourceType.derived
+        trust_level = TrustLevel.derived
+    elif source_name in {"system"}:
+        source_type = SourceType.derived
+        trust_level = TrustLevel.derived
+    else:
+        source_type = SourceType.runtime
+        trust_level = TrustLevel.verified
+
+    if settings.ledger_enabled:
+        return ledger_service.enrich_with_provenance(
+            enriched,
+            trace_id=enriched["trace_id"],
+            source_component="observability.enrich_event_payload",
+            source_type=source_type,
+            trust_level=trust_level,
+            persistence_status=PersistenceStatus.live_unpersisted,
+        )
+
+    enriched["provenance"] = {
+        "event_id": enriched["event_id"],
+        "trace_id": enriched["trace_id"],
+        "sequence_no": int(enriched.get("step_index", 0)) + 1,
+        "source_type": source_type.value,
+        "source_component": "observability.enrich_event_payload",
+        "trust_level": trust_level.value,
+        "persistence_status": PersistenceStatus.live_unpersisted.value,
+        "timestamp": enriched["timestamp"],
     }
     return enriched

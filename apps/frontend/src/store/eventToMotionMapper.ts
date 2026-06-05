@@ -44,8 +44,7 @@ export const handleNormalizedEvent = (event: NormalizedEcosystemEvent) => {
     console.log('STORE REF', ecosystemRuntimeStore)
   }
   if (import.meta.env.DEV) {
-    ;(globalThis as typeof globalThis & { __ecoStoreMapperRef?: unknown }).__ecoStoreMapperRef =
-      ecosystemRuntimeStore
+    void ((globalThis as typeof globalThis & { __ecoStoreMapperRef?: unknown }).__ecoStoreMapperRef = ecosystemRuntimeStore)
   }
   const trace_id = event?.trace_id
   if (!trace_id) return
@@ -134,3 +133,5 @@ export const handleNormalizedEvent = (event: NormalizedEcosystemEvent) => {
       break
   }
 }
+
+

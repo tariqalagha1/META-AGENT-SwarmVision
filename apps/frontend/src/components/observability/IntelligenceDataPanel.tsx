@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { useObservabilityStore } from '../../store'
+import { selectTraceTruthSummary } from '../../store'
 import { EmptyStateCard } from './EmptyStateCard'
+import { TruthBadge } from '../truth/TruthBadge'
 import './ObservabilityPanels.css'
 
 const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null)
@@ -115,6 +117,9 @@ export function IntelligenceDataPanel() {
       health,
     }
   }, [events, runHistory, selectedEventId, selectedTraceId, traces])
+  const truthSummary = selectTraceTruthSummary(useObservabilityStore((s) => s), selectedTraceId)
+  const primaryTruth = (Object.entries(truthSummary).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    'unknown') as 'runtime' | 'replay' | 'derived' | 'synthetic' | 'mock' | 'unknown'
 
   return (
     <section className="ov-panel ov-panel-intelligence" aria-label="Intelligence data panel">
@@ -123,6 +128,7 @@ export function IntelligenceDataPanel() {
           <h2>Execution Intelligence</h2>
           <p>{selectedTraceId ? `Trace ${selectedTraceId}` : 'No trace selected'}</p>
         </div>
+        <TruthBadge truthClass={primaryTruth} />
       </header>
       {!model ? (
         <EmptyStateCard title="No intelligence data" description="Select a trace and event to inspect planner/retry/diagnostic details." />
@@ -141,4 +147,3 @@ export function IntelligenceDataPanel() {
     </section>
   )
 }
-

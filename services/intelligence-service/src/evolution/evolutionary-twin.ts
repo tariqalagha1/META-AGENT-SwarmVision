@@ -18,6 +18,10 @@ const MAX_BRANCHES     = 12;
 const PRUNE_THRESHOLD  = 0.40;          // branches below this fitness are pruned
 const FORECAST_STEPS   = 10;
 
+function eventMs(ev: SwarmEvent): number {
+  return ev.timestamp_ms ?? ev.offset_ms ?? 0;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export function runEvolutionaryTwin(
@@ -29,7 +33,7 @@ export function runEvolutionaryTwin(
 
   // Evolve orchestration to get candidate genomes
   const evolution = evolveOrchestration(swarmId, events, events.length > 0
-    ? events[events.length - 1].timestamp_ms - events[0].timestamp_ms
+    ? eventMs(events[events.length - 1]!) - eventMs(events[0]!)
     : 30_000);
 
   // Convert top genomes into branches

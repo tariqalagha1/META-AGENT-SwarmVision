@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { WebSocketEvent } from '../types/observability'
-import type { GraphFilters, ObservabilityEvent, ReplayState } from './useObservabilityStore'
+import type { GraphFilters, ObservabilityEvent, ObservabilityStore, ReplayState } from './useObservabilityStore'
 import { useObservabilityStore } from './useObservabilityStore'
 import {
   applyAgentSnapshot,
@@ -446,11 +446,13 @@ export const useGraphData = (scope: EventScope = {}) => {
 export const useReplayGraphData = (scope: EventScope = {}): GraphViewData => {
   const liveGraph = useGraphData(scope)
   const replay = useObservabilityStore((s) => s.replay)
+  const replaySession = useObservabilityStore((s) => s.replaySession)
   const topologyEvents = useTopologyEvents(scope)
   const cacheRef = useRef<{ replay: ReplayState; view: GraphViewData } | null>(null)
 
   return useMemo(() => {
     if (!replay.enabled || !replay.cursorTs) return liveGraph
+    if (replaySession.view_mode === 'live') return liveGraph
 
     const previous = cacheRef.current
     if (
@@ -461,7 +463,10 @@ export const useReplayGraphData = (scope: EventScope = {}): GraphViewData => {
       return previous.view
     }
 
-    const replayEvents = topologyEvents.filter((event) => getEventTimestamp(event) <= replay.cursorTs!)
+    const effectiveCursor = replaySession.locked
+      ? replaySession.lock_cursor_ts ?? replay.cursorTs!
+      : replaySession.cursor_ts ?? replay.cursorTs!
+    const replayEvents = topologyEvents.filter((event) => getEventTimestamp(event) <= effectiveCursor)
     let state = createGraphState()
     if (replayEvents.length > 0) {
       state = applyNormalizedEvents(state, replayEvents as GraphEvent[])
@@ -477,7 +482,7 @@ export const useReplayGraphData = (scope: EventScope = {}): GraphViewData => {
       view,
     }
     return view
-  }, [liveGraph, replay, topologyEvents])
+  }, [liveGraph, replay, replaySession, topologyEvents])
 }
 
 export const useFilteredGraphData = (scope: EventScope = {}): GraphViewData => {
@@ -551,4 +556,109 @@ export const useFilteredGraphData = (scope: EventScope = {}): GraphViewData => {
     }
     return view
   }, [baseGraph, filters])
+}
+
+export type TruthClass = 'runtime' | 'replay' | 'derived' | 'synthetic' | 'mock' | 'unknown'
+
+export const getTruthClassFromEvent = (
+  event: Record<string, unknown> | { provenance?: { source_type?: string } } | null | undefined
+): TruthClass => {
+  const provenance = (event as { provenance?: { source_type?: string } } | null | undefined)?.provenance
+  const sourceType = String(provenance?.source_type ?? '').toLowerCase()
+  if (sourceType === 'runtime' || sourceType === 'persisted') return 'runtime'
+  if (sourceType === 'replay') return 'replay'
+  if (sourceType === 'derived') return 'derived'
+  if (sourceType === 'synthetic') return 'synthetic'
+  if (sourceType === 'mock') return 'mock'
+  return 'unknown'
+}
+
+type TruthMixSummary = Record<TruthClass, number>
+
+const toPercent = (value: number, total: number) => (total <= 0 ? 0 : Math.round((value / total) * 100))
+
+export const selectTruthMixSummary = (state: ObservabilityStore): TruthMixSummary => {
+  const counts: Record<TruthClass, number> = {
+    runtime: 0,
+    replay: 0,
+    derived: 0,
+    synthetic: 0,
+    mock: 0,
+    unknown: 0,
+  }
+  const events = Object.values(state.events)
+  for (const event of events) {
+    counts[getTruthClassFromEvent(event)] += 1
+  }
+  const total = events.length
+  return {
+    runtime: toPercent(counts.runtime, total),
+    replay: toPercent(counts.replay, total),
+    derived: toPercent(counts.derived, total),
+    synthetic: toPercent(counts.synthetic, total),
+    mock: toPercent(counts.mock, total),
+    unknown: toPercent(counts.unknown, total),
+  }
+}
+
+export const selectTraceTruthSummary = (state: ObservabilityStore, traceId: string | null): TruthMixSummary => {
+  const counts: Record<TruthClass, number> = {
+    runtime: 0,
+    replay: 0,
+    derived: 0,
+    synthetic: 0,
+    mock: 0,
+    unknown: 0,
+  }
+  if (!traceId) return counts
+  const ids = state.traces[traceId] ?? []
+  for (const id of ids) {
+    const event = state.events[id]
+    if (!event) continue
+    counts[getTruthClassFromEvent(event)] += 1
+  }
+  const total = ids.length
+  return {
+    runtime: toPercent(counts.runtime, total),
+    replay: toPercent(counts.replay, total),
+    derived: toPercent(counts.derived, total),
+    synthetic: toPercent(counts.synthetic, total),
+    mock: toPercent(counts.mock, total),
+    unknown: toPercent(counts.unknown, total),
+  }
+}
+
+export const selectReplayScope = (state: ObservabilityStore) => ({
+  source: state.replaySession.source_label,
+  trace_id: state.replaySession.selected_trace_id,
+  cursor_ts: state.replaySession.locked
+    ? state.replaySession.lock_cursor_ts
+    : (state.replaySession.cursor_ts ?? state.replay.cursorTs ?? null),
+  mode: state.replaySession.view_mode,
+  locked: state.replaySession.locked,
+})
+
+export const selectReplayEventCount = (state: ObservabilityStore) => {
+  const cursor = state.replaySession.locked
+    ? state.replaySession.lock_cursor_ts
+    : (state.replaySession.cursor_ts ?? state.replay.cursorTs ?? null)
+  if (!cursor) return 0
+  return Object.values(state.events).filter((event) => {
+    const ts = Date.parse(String(event.timestamp ?? ''))
+    return Number.isFinite(ts) && ts <= cursor
+  }).length
+}
+
+export const selectReplayIntegrity = (state: ObservabilityStore) => {
+  const count = selectReplayEventCount(state)
+  if (count === 0) return 'unknown' as const
+  if (count < 5) return 'partial' as const
+  return 'verified' as const
+}
+
+export const selectReplayConfidence = (state: ObservabilityStore) => {
+  const status = selectReplayIntegrity(state)
+  if (status === 'verified') return 90
+  if (status === 'partial') return 60
+  return 20
 }

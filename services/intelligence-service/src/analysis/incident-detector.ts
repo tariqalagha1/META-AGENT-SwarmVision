@@ -2,7 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   DetectedIncident, IncidentKind, IncidentRisk, IncidentSignal, Bottleneck,
 } from '../types';
-import { ScoringWindow, AgentEfficiencyScore } from '../scoring/health-scorer';
+import { AgentEfficiencyScore } from '../types';
+import { ScoringWindow } from '../scoring/health-scorer';
 
 // ─── Signal thresholds ────────────────────────────────────────────────────────
 

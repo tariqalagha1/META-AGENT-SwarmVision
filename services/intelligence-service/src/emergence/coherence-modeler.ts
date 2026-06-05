@@ -16,7 +16,7 @@ export function computeCoherence(
   healthReport: SwarmHealthReport,
   healthHistory: number[],     // recent overall_health values, newest last
 ): SwarmCoherenceReport {
-  const sorted = [...events].sort((a, b) => a.timestamp_ms - b.timestamp_ms);
+  const sorted = [...events].sort((a, b) => eventMs(a) - eventMs(b));
   const agents = uniqueAgents(sorted);
 
   const harmony             = computeHarmony(healthReport, sorted, agents);
@@ -124,11 +124,15 @@ function computeSyncQuality(events: SwarmEvent[], agents: string[]): number {
   let sync = 0;
   let total = 0;
   for (let i = 0; i < completions.length; i++) {
+    const left = completions[i];
+    if (!left) continue;
     for (let j = i + 1; j < completions.length; j++) {
-      const lag = completions[j].timestamp_ms - completions[i].timestamp_ms;
+      const right = completions[j];
+      if (!right) continue;
+      const lag = eventMs(right) - eventMs(left);
       if (lag > 2000) break;
       total++;
-      if (lag <= 500 && completions[i].agent_id !== completions[j].agent_id) sync++;
+      if (lag <= 500 && left.agent_id !== right.agent_id) sync++;
     }
   }
   return total > 0 ? sync / total : 0.5;
@@ -241,4 +245,8 @@ function coefficientOfVariation(values: number[]): number {
 
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
+}
+
+function eventMs(ev: SwarmEvent): number {
+  return ev.timestamp_ms ?? ev.offset_ms ?? 0;
 }

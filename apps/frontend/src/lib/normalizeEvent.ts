@@ -13,7 +13,7 @@ export type NormalizedEvent = {
   step_index?: number
   decision_flag?: string
   source?: string
-  payload: Record<string, any>
+  payload: Record<string, unknown>
   _meta: {
     normalized: true
     degraded?: boolean
@@ -48,8 +48,14 @@ const typeMap: Record<string, string> = {
   AGENT_STATE_SNAPSHOT: 'AGENT_STATE_SNAPSHOT',
 }
 
-const toRecord = (value: unknown): Record<string, any> =>
-  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, any>) : {}
+const toRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+
+const toOptionalString = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return undefined
+}
 
 const generateEventId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -69,32 +75,44 @@ const toTimestampMs = (rawTs: unknown) => {
   return Date.now()
 }
 
-export function normalizeEvent(raw: any): NormalizedEvent {
+export function normalizeEvent(raw: unknown): NormalizedEvent {
   const input = toRecord(raw)
   const payload = toRecord(input.payload)
+  const context = toRecord(input.context)
 
   const sourceEventType = String(input.event_type ?? input.type ?? 'UNKNOWN_EVENT')
   const mappedType = typeMap[sourceEventType] || 'OBSERVABILITY_EVENT'
 
   const source_agent_id =
-    payload.source_agent_id || payload.from_agent || input.from_agent || input.source_agent_id
+    toOptionalString(payload.source_agent_id) ??
+    toOptionalString(payload.from_agent) ??
+    toOptionalString(input.from_agent) ??
+    toOptionalString(input.source_agent_id)
 
   const target_agent_id =
-    payload.target_agent_id || payload.to_agent || input.to_agent || input.target_agent_id
+    toOptionalString(payload.target_agent_id) ??
+    toOptionalString(payload.to_agent) ??
+    toOptionalString(input.to_agent) ??
+    toOptionalString(input.target_agent_id)
 
   const event_id = String(input.event_id ?? input.id ?? generateEventId())
-  const trace_id = String(input.trace_id ?? input.context?.trace_id ?? '__unknown_trace__')
+  const trace_id = String(input.trace_id ?? context.trace_id ?? '__unknown_trace__')
   const timestamp = toTimestampMs(input.timestamp ?? input.created_at ?? Date.now())
 
-  const agent_id = String(
-    input.agent_id ?? payload.agent_id ?? source_agent_id ?? target_agent_id ?? ''
-  )
+  const agent_id =
+    toOptionalString(input.agent_id) ??
+    toOptionalString(payload.agent_id) ??
+    source_agent_id ??
+    target_agent_id ??
+    ''
 
-  const tenant_id = input.tenant_id ?? input.context?.tenant_id
-  const app_id = input.app_id ?? input.context?.app_id
+  const tenant_id = toOptionalString(input.tenant_id) ?? toOptionalString(context.tenant_id)
+  const app_id = toOptionalString(input.app_id) ?? toOptionalString(context.app_id)
   const step_index = Number.isFinite(input.step_index) ? Number(input.step_index) : undefined
   const decision_flag =
-    input.decision_flag ?? payload.decision_flag ?? input.context?.decision_flag
+    toOptionalString(input.decision_flag) ??
+    toOptionalString(payload.decision_flag) ??
+    toOptionalString(context.decision_flag)
 
   let degraded = false
   if (trace_id === '__unknown_trace__') degraded = true
@@ -105,7 +123,7 @@ export function normalizeEvent(raw: any): NormalizedEvent {
     degraded = true
   }
 
-  const normalizedPayload: Record<string, any> = {
+  const normalizedPayload: Record<string, unknown> = {
     ...payload,
   }
   if (source_agent_id) normalizedPayload.source_agent_id = source_agent_id
@@ -122,10 +140,10 @@ export function normalizeEvent(raw: any): NormalizedEvent {
     agent_id: agent_id || undefined,
     source_agent_id: source_agent_id || undefined,
     target_agent_id: target_agent_id || undefined,
-    tenant_id: tenant_id ? String(tenant_id) : undefined,
-    app_id: app_id ? String(app_id) : undefined,
+    tenant_id,
+    app_id,
     step_index,
-    decision_flag: decision_flag ? String(decision_flag) : undefined,
+    decision_flag,
     source: input.source ? String(input.source) : 'normalized-ingress',
     payload: normalizedPayload,
     _meta: {

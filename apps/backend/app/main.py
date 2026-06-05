@@ -29,6 +29,17 @@ from app.clients import fire_and_forget_meta
 from app.clients.meta_client import configure_meta_client
 from app.control_plane import ControlPlane
 from app.core.pulse import EventPulseEmitter
+from app.core.security import (
+    ROLE_MANAGER,
+    ROLE_READ_ONLY,
+    ROLE_SUPER_ADMIN,
+    ROLE_TENANT_ADMIN,
+    ROLE_USER,
+    authenticate_request,
+    authenticate_websocket,
+    enforce_role,
+    enforce_tenant_scope,
+)
 from app.core.settings import get_settings
 from app.neo4j import Neo4jGraphRepository, build_topology_snapshot
 from app.observability import (
@@ -99,6 +110,14 @@ recent_events: deque[dict] = deque(maxlen=500)
 recent_decisions: deque[dict] = deque(maxlen=300)
 
 
+def _event_tenant_id(event: dict) -> str | None:
+    context = event.get("context")
+    if isinstance(context, dict) and context.get("tenant_id"):
+        return str(context.get("tenant_id"))
+    tenant_id = event.get("tenant_id")
+    return str(tenant_id) if tenant_id else None
+
+
 async def _handle_meta_insights(insights: list[dict], context) -> None:
     """Persist passive meta insights as observability events."""
 
@@ -125,7 +144,11 @@ async def _handle_meta_insights(insights: list[dict], context) -> None:
             await run_in_threadpool(graph_repository.persist_event, enriched)
             recent_events.appendleft(enriched)
             try:
-                await ws_manager.broadcast(enriched, channel="events")
+                await ws_manager.broadcast(
+                    enriched,
+                    channel="events",
+                    tenant_id=_event_tenant_id(enriched),
+                )
             except Exception as broadcast_exc:
                 logger.debug("meta_insight_broadcast_failed=%s", normalize_error(broadcast_exc))
         except Exception as exc:
@@ -167,7 +190,11 @@ async def publish_event(event_payload: dict) -> None:
     )
     enriched["latency_ms"] = round((perf_counter() - started_at) * 1000, 2)
     await run_in_threadpool(graph_repository.persist_event, enriched)
-    await ws_manager.broadcast(enriched, channel="events")
+    await ws_manager.broadcast(
+        enriched,
+        channel="events",
+        tenant_id=_event_tenant_id(enriched),
+    )
     recent_events.appendleft(enriched)
     aggregation_service.ingest_event(enriched)
     agent_metric = aggregation_service.get_agent_metric(enriched.get("agent_id", ""))
@@ -217,7 +244,11 @@ async def publish_event_passthrough(payload: dict) -> None:
     """Emit an observability-only event without mutating core logic."""
     enriched = enrich_event_payload(payload)
     await run_in_threadpool(graph_repository.persist_event, enriched)
-    await ws_manager.broadcast(enriched, channel="events")
+    await ws_manager.broadcast(
+        enriched,
+        channel="events",
+        tenant_id=_event_tenant_id(enriched),
+    )
     recent_events.appendleft(enriched)
     if enriched.get("event_type") == "DECISION":
         recent_decisions.appendleft(enriched)
@@ -227,8 +258,9 @@ async def publish_anomaly_event(payload: dict) -> None:
     enriched = enrich_event_payload(payload)
     recent_anomalies.appendleft(enriched)
     await run_in_threadpool(graph_repository.persist_event, enriched)
-    await ws_manager.broadcast(enriched, channel="alerts")
-    await ws_manager.broadcast(enriched, channel="events")
+    tenant_id = _event_tenant_id(enriched)
+    await ws_manager.broadcast(enriched, channel="alerts", tenant_id=tenant_id)
+    await ws_manager.broadcast(enriched, channel="events", tenant_id=tenant_id)
     _dispatch_meta("anomaly_detected", trace_id=enriched.get("trace_id"))
 
 
@@ -242,6 +274,7 @@ async def metrics_stream_loop() -> None:
                 "payload": metrics,
             },
             channel="metrics",
+            tenant_id=None,
         )
         await ws_manager.broadcast(
             {
@@ -252,6 +285,7 @@ async def metrics_stream_loop() -> None:
                 ),
             },
             channel="agents",
+            tenant_id=None,
         )
         await asyncio.sleep(max(settings.realtime_metrics_interval_seconds, 1))
 
@@ -329,10 +363,21 @@ app.include_router(swarm_router)
 app.include_router(agent_registry_router)
 
 
+def _request_auth(request: Request):
+    return getattr(request.state, "auth", None)
+
+
 @app.middleware("http")
 async def trace_context_middleware(request: Request, call_next):
     initialize_trace_context(request.headers)
     begin_operation_step("http_request")
+    public_paths = {"/health", "/ws/stats"}
+    try:
+        if request.url.path not in public_paths:
+            auth = authenticate_request(request)
+            request.state.auth = auth
+    except HTTPException as exc:
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     response = await call_next(request)
     trace = get_trace_context()
     response.headers["x-trace-id"] = trace.trace_id
@@ -370,7 +415,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
     initialize_trace_context(dict(websocket.headers))
     begin_operation_step("websocket_session")
-    await ws_manager.connect(websocket, channel="events")
+    auth = authenticate_websocket(websocket)
+    await ws_manager.connect(websocket, channel="events", auth=auth)
     try:
         while True:
             data = await websocket.receive_text()
@@ -394,7 +440,8 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.websocket("/events")
 async def websocket_events_channel(websocket: WebSocket):
     initialize_trace_context(dict(websocket.headers))
-    await ws_manager.connect(websocket, channel="events")
+    auth = authenticate_websocket(websocket)
+    await ws_manager.connect(websocket, channel="events", auth=auth)
     try:
         while True:
             await websocket.receive_text()
@@ -405,7 +452,8 @@ async def websocket_events_channel(websocket: WebSocket):
 @app.websocket("/metrics")
 async def websocket_metrics_channel(websocket: WebSocket):
     initialize_trace_context(dict(websocket.headers))
-    await ws_manager.connect(websocket, channel="metrics")
+    auth = authenticate_websocket(websocket)
+    await ws_manager.connect(websocket, channel="metrics", auth=auth)
     try:
         while True:
             await websocket.receive_text()
@@ -416,7 +464,8 @@ async def websocket_metrics_channel(websocket: WebSocket):
 @app.websocket("/alerts")
 async def websocket_alerts_channel(websocket: WebSocket):
     initialize_trace_context(dict(websocket.headers))
-    await ws_manager.connect(websocket, channel="alerts")
+    auth = authenticate_websocket(websocket)
+    await ws_manager.connect(websocket, channel="alerts", auth=auth)
     try:
         while True:
             await websocket.receive_text()
@@ -427,7 +476,8 @@ async def websocket_alerts_channel(websocket: WebSocket):
 @app.websocket("/agents")
 async def websocket_agents_channel(websocket: WebSocket):
     initialize_trace_context(dict(websocket.headers))
-    await ws_manager.connect(websocket, channel="agents")
+    auth = authenticate_websocket(websocket)
+    await ws_manager.connect(websocket, channel="agents", auth=auth)
     try:
         while True:
             await websocket.receive_text()
@@ -436,7 +486,7 @@ async def websocket_agents_channel(websocket: WebSocket):
 
 
 @app.post("/events/broadcast")
-async def broadcast_event(event: Event):
+async def broadcast_event(event: Event, request: Request):
     """Broadcast an event to all connected WebSocket clients."""
 
     try:
@@ -447,9 +497,17 @@ async def broadcast_event(event: Event):
         if not isinstance(context, dict):
             context = {}
         context["trace_id"] = payload["trace_id"]
+        tenant_id = context.get("tenant_id")
+        enforce_role(
+            _request_auth(request),
+            [ROLE_SUPER_ADMIN, ROLE_TENANT_ADMIN, ROLE_MANAGER, ROLE_USER],
+        )
+        enforce_tenant_scope(_request_auth(request), tenant_id)
         payload["context"] = context
         await publish_event(payload)
         return {"message": "Event broadcasted successfully", "event": event}
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error("broadcast_error=%s", normalize_error(exc))
         raise HTTPException(status_code=500, detail="Failed to broadcast event")
@@ -502,6 +560,7 @@ async def _load_events_for_range(
 
 @app.get("/replay/events", response_model=ReplayEventsResponse)
 async def replay_events(
+    request: Request,
     from_timestamp: str | None = Query(default=None, alias="from"),
     to_timestamp: str | None = Query(default=None, alias="to"),
     tenant_id: str | None = Query(default=None),
@@ -533,6 +592,7 @@ async def replay_events(
 
 @app.get("/replay/topology", response_model=ReplayTopologyResponse)
 async def replay_topology(
+    request: Request,
     timestamp: str,
     tenant_id: str | None = Query(default=None),
     app_id: str | None = Query(default=None),
@@ -566,6 +626,7 @@ async def replay_topology(
 
 @app.get("/replay/range", response_model=ReplayRangeResponse)
 async def replay_range(
+    request: Request,
     from_timestamp: str | None = Query(default=None, alias="from"),
     to_timestamp: str | None = Query(default=None, alias="to"),
     tenant_id: str | None = Query(default=None),
@@ -612,11 +673,17 @@ async def replay_range(
 
 @app.get("/analytics/summary", response_model=AnalyticsSummaryResponse)
 async def analytics_summary(
+    request: Request,
     from_timestamp: str | None = Query(default=None, alias="from"),
     to_timestamp: str | None = Query(default=None, alias="to"),
     tenant_id: str | None = Query(default=None),
     app_id: str | None = Query(default=None),
 ):
+    enforce_role(
+        _request_auth(request),
+        [ROLE_SUPER_ADMIN, ROLE_TENANT_ADMIN, ROLE_MANAGER, ROLE_USER, ROLE_READ_ONLY],
+    )
+    enforce_tenant_scope(_request_auth(request), tenant_id)
     if not graph_repository.available:
         await publish_decision(
             name="analytics_summary_availability",
@@ -634,11 +701,17 @@ async def analytics_summary(
 
 @app.get("/analytics/failures", response_model=AnalyticsFailuresResponse)
 async def analytics_failures(
+    request: Request,
     from_timestamp: str | None = Query(default=None, alias="from"),
     to_timestamp: str | None = Query(default=None, alias="to"),
     tenant_id: str | None = Query(default=None),
     app_id: str | None = Query(default=None),
 ):
+    enforce_role(
+        _request_auth(request),
+        [ROLE_SUPER_ADMIN, ROLE_TENANT_ADMIN, ROLE_MANAGER, ROLE_USER, ROLE_READ_ONLY],
+    )
+    enforce_tenant_scope(_request_auth(request), tenant_id)
     if not graph_repository.available:
         await publish_decision(
             name="analytics_failures_availability",
@@ -656,11 +729,17 @@ async def analytics_failures(
 
 @app.get("/analytics/latency", response_model=AnalyticsLatencyResponse)
 async def analytics_latency(
+    request: Request,
     from_timestamp: str | None = Query(default=None, alias="from"),
     to_timestamp: str | None = Query(default=None, alias="to"),
     tenant_id: str | None = Query(default=None),
     app_id: str | None = Query(default=None),
 ):
+    enforce_role(
+        _request_auth(request),
+        [ROLE_SUPER_ADMIN, ROLE_TENANT_ADMIN, ROLE_MANAGER, ROLE_USER, ROLE_READ_ONLY],
+    )
+    enforce_tenant_scope(_request_auth(request), tenant_id)
     if not graph_repository.available:
         await publish_decision(
             name="analytics_latency_availability",
@@ -678,11 +757,17 @@ async def analytics_latency(
 
 @app.get("/analytics/bottlenecks", response_model=AnalyticsBottlenecksResponse)
 async def analytics_bottlenecks(
+    request: Request,
     from_timestamp: str | None = Query(default=None, alias="from"),
     to_timestamp: str | None = Query(default=None, alias="to"),
     tenant_id: str | None = Query(default=None),
     app_id: str | None = Query(default=None),
 ):
+    enforce_role(
+        _request_auth(request),
+        [ROLE_SUPER_ADMIN, ROLE_TENANT_ADMIN, ROLE_MANAGER, ROLE_USER, ROLE_READ_ONLY],
+    )
+    enforce_tenant_scope(_request_auth(request), tenant_id)
     if not graph_repository.available:
         await publish_decision(
             name="analytics_bottlenecks_availability",
@@ -701,10 +786,23 @@ async def analytics_bottlenecks(
 
 
 @app.get("/trace/{trace_id}", response_model=TracePathResponse)
-async def trace_path(trace_id: str):
+async def trace_path(
+    trace_id: str,
+    request: Request,
+    tenant_id: str | None = Query(default=None),
+):
+    enforce_role(
+        _request_auth(request),
+        [ROLE_SUPER_ADMIN, ROLE_TENANT_ADMIN, ROLE_MANAGER, ROLE_USER, ROLE_READ_ONLY],
+    )
+    enforce_tenant_scope(_request_auth(request), tenant_id)
     if not graph_repository.available:
         raise HTTPException(status_code=503, detail="Trace store unavailable")
     events = await run_in_threadpool(graph_repository.get_trace_events, trace_id)
+    if tenant_id:
+        events = [event for event in events if _event_tenant_id(event) == tenant_id]
+    if not events:
+        raise HTTPException(status_code=404, detail="Trace not found")
     return TracePathResponse(
         trace_id=trace_id,
         count=len(events),
@@ -726,7 +824,16 @@ async def trace_path(trace_id: str):
 
 
 @app.get("/agent/{agent_id}/metrics", response_model=AgentMetricResponse)
-async def agent_metrics(agent_id: str):
+async def agent_metrics(
+    agent_id: str,
+    request: Request,
+    tenant_id: str | None = Query(default=None),
+):
+    enforce_role(
+        _request_auth(request),
+        [ROLE_SUPER_ADMIN, ROLE_TENANT_ADMIN, ROLE_MANAGER, ROLE_USER, ROLE_READ_ONLY],
+    )
+    enforce_tenant_scope(_request_auth(request), tenant_id)
     metric = aggregation_service.get_agent_metric(agent_id)
     state = agent_state_store.get_agent_state(agent_id)
     if not metric or not state:
@@ -748,10 +855,21 @@ async def agent_metrics(agent_id: str):
 
 
 @app.get("/anomalies", response_model=AnomalyListResponse)
-async def anomalies(limit: int = Query(default=50, ge=1, le=200)):
+async def anomalies(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=200),
+    tenant_id: str | None = Query(default=None),
+):
+    enforce_role(
+        _request_auth(request),
+        [ROLE_SUPER_ADMIN, ROLE_TENANT_ADMIN, ROLE_MANAGER, ROLE_USER, ROLE_READ_ONLY],
+    )
+    enforce_tenant_scope(_request_auth(request), tenant_id)
     records = list(recent_anomalies)[:limit]
     if graph_repository.available:
         records = await run_in_threadpool(graph_repository.get_recent_anomalies, limit)
+    if tenant_id:
+        records = [event for event in records if _event_tenant_id(event) == tenant_id]
 
     return AnomalyListResponse(
         count=len(records),
@@ -774,12 +892,20 @@ async def anomalies(limit: int = Query(default=50, ge=1, le=200)):
 
 
 @app.get("/replay/{trace_id}", response_model=TracePathResponse)
-async def replay_by_trace(trace_id: str):
-    return await trace_path(trace_id)
+async def replay_by_trace(
+    trace_id: str,
+    request: Request,
+    tenant_id: str | None = Query(default=None),
+):
+    return await trace_path(trace_id, request, tenant_id=tenant_id)
 
 
 async def _emit_diagnostic_to_ws(payload: dict) -> None:
-    await ws_manager.broadcast(payload, channel="events")
+    await ws_manager.broadcast(
+        payload,
+        channel="events",
+        tenant_id=_event_tenant_id(payload),
+    )
 
 
 register_diagnostic_emitter(_emit_diagnostic_to_ws)

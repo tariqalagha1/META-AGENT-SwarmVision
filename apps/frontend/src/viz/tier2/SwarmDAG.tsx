@@ -11,6 +11,8 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useVizStore } from '../useVizStore'
 import { PIPELINE } from '../VizBridge'
+import { useObservabilityStore, selectTruthMixSummary } from '../../store'
+import { TruthBadge } from '../../components/truth/TruthBadge'
 import { AgentNode } from './AgentNode'
 import type { AgentNodeData } from './AgentNode'
 import { RoomDrillDown } from '../../components/observability/RoomDrillDown'
@@ -59,6 +61,9 @@ export default function SwarmDAG() {
   const stats   = useVizStore((s) => s.stats)
   const log     = useVizStore((s) => s.log)
   const setView = useVizStore((s) => s.setView)
+  const truthSummary = selectTruthMixSummary(useObservabilityStore((s) => s))
+  const primaryTruth = (Object.entries(truthSummary).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    'unknown') as 'runtime' | 'replay' | 'derived' | 'synthetic' | 'mock' | 'unknown'
 
   const [drillRoom, setDrillRoom] = useState<string | null>(null)
 
@@ -115,6 +120,8 @@ export default function SwarmDAG() {
   }, [])
 
   const agentList = Array.from(agents.values()).slice(0, 8)
+  const displayAgentLabel = (agent: { id: string; name: string }) =>
+    agent.id === agent.name ? agent.id : `${agent.id} · ${agent.name}`
 
   const statRows = [
     { label: 'PROCESSED', val: stats.processed,                                              color: '#2dd4bf'  },
@@ -127,11 +134,25 @@ export default function SwarmDAG() {
   return (
     <div className="swarm-dag-wrapper">
       <div className="swarm-dag-canvas">
+        <div className="sv-map-frame sv-map-frame--ops" aria-hidden="true">
+          <div className="sv-map-frame__header">
+            <span>Ops command map</span>
+            <span>{agents.size} units · {log.length} log entries</span>
+          </div>
+          <div className="sv-map-frame__corners sv-map-frame__corners--tl" />
+          <div className="sv-map-frame__corners sv-map-frame__corners--tr" />
+          <div className="sv-map-frame__corners sv-map-frame__corners--bl" />
+          <div className="sv-map-frame__corners sv-map-frame__corners--br" />
+          <div className="sv-map-frame__scanlines" />
+          <div className="sv-map-frame__micro sv-map-frame__micro--left">route sectors</div>
+          <div className="sv-map-frame__micro sv-map-frame__micro--right">fit view enabled</div>
+        </div>
         <div className="swarm-dag-topbar">
           <span className="swarm-dag-title">
             <span className="swarm-dag-title-main">⬡ SWARMVISION</span>
             <span className="swarm-dag-title-sub">— OPS VIEW</span>
           </span>
+          <TruthBadge truthClass={primaryTruth} />
           <button
             type="button"
             className="swarm-dag-toggle"
@@ -183,7 +204,7 @@ export default function SwarmDAG() {
                     className="swarm-dag-agent-bar"
                     style={{ background: a.color }}
                   />
-                  <span className="swarm-dag-agent-name">{a.name}</span>
+                  <span className="swarm-dag-agent-name">{displayAgentLabel(a)}</span>
                   <span className="swarm-dag-agent-zone">{a.zone}</span>
                 </div>
               ))}

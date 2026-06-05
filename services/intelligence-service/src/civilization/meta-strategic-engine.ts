@@ -69,7 +69,7 @@ function scoreIdeologyFitness(
 
   const scores = all.map(ideology => {
     const { fitness, contextFit } = scoreIdeologyInContext(ideology, health, emergent, coherence);
-    return { ideology, fitness, contextFit, trajectory: 'stable' as 'rising' | 'stable' | 'declining' };
+    return { ideology, fitness, context_fit: contextFit, trajectory: 'stable' as 'rising' | 'stable' | 'declining' };
   });
 
   scores.sort((a, b) => b.fitness - a.fitness);

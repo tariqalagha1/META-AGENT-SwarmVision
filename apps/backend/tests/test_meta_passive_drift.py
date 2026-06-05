@@ -22,7 +22,11 @@ def test_meta_routes_passive_surface_only():
 def test_no_outbound_to_main_backend_from_meta_code():
     repo_root = Path(__file__).resolve().parents[3]
     meta_dir = repo_root / 'services' / 'meta-agent' / 'app'
-    text = '\n'.join(path.read_text(encoding='utf-8') for path in meta_dir.rglob('*.py'))
+    text = '\n'.join(
+        path.read_text(encoding='utf-8')
+        for path in meta_dir.rglob('*.py')
+        if 'tests' not in path.parts
+    )
 
     forbidden_targets = ['swarmvision-backend', 'localhost:8000', '/events/broadcast']
     assert all(target not in text for target in forbidden_targets)

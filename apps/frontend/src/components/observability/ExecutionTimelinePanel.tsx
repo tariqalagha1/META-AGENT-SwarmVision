@@ -5,6 +5,8 @@ import { usePausedSnapshot, useTimelineEvents } from '../../store'
 import { useRelativeTimeTicker } from '../../utils/formatTimestamp'
 import { TimelineEventRow } from './TimelineEventRow'
 import { EmptyStateCard } from './EmptyStateCard'
+import { TruthBadge } from '../truth/TruthBadge'
+import { getTruthClassFromEvent } from '../../store'
 import './ObservabilityPanels.css'
 
 type ExecutionTimelinePanelProps = {
@@ -42,6 +44,7 @@ export function ExecutionTimelinePanel({ disconnected }: ExecutionTimelinePanelP
 
   const liveEvents = useTimelineEvents(selectedTraceId)
   const timelineEvents = usePausedSnapshot(liveEvents, isPaused)
+  const primaryTruth = getTruthClassFromEvent(timelineEvents[0])
   useRelativeTimeTicker()
 
   const rowData = useMemo<TimelineRowProps>(() => {
@@ -75,6 +78,7 @@ export function ExecutionTimelinePanel({ disconnected }: ExecutionTimelinePanelP
       <section className="ov-panel ov-panel-timeline" aria-label="Execution timeline panel">
         <header className="ov-panel-header">
           <h2>Execution Timeline</h2>
+          <TruthBadge truthClass="unknown" />
         </header>
         <EmptyStateCard
           title="Select a node or trace to view execution"
@@ -89,6 +93,7 @@ export function ExecutionTimelinePanel({ disconnected }: ExecutionTimelinePanelP
       <section className="ov-panel ov-panel-timeline" aria-label="Execution timeline panel">
         <header className="ov-panel-header">
           <h2>Execution Timeline</h2>
+          <TruthBadge truthClass={primaryTruth} />
         </header>
         <EmptyStateCard
           title="No events recorded for this trace yet"
@@ -102,7 +107,10 @@ export function ExecutionTimelinePanel({ disconnected }: ExecutionTimelinePanelP
     <section className="ov-panel ov-panel-timeline" aria-label="Execution timeline panel">
       <header className="ov-panel-header">
         <h2>Execution Timeline</h2>
-        <p>Trace {selectedTraceId}</p>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+          <TruthBadge truthClass={primaryTruth} />
+          <p>Trace {selectedTraceId}</p>
+        </div>
       </header>
 
       {disconnected && timelineEvents.length === 0 ? <div className="ov-panel-overlay">Disconnected</div> : null}

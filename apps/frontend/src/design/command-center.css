@@ -1,0 +1,40 @@
+:root {
+  --bg-main: #050607;
+  --bg-panel: #091214;
+  --bg-map: #071018;
+  --accent-green: #34ff7a;
+  --accent-cyan: #00d9ff;
+  --accent-red: #ff4343;
+  --accent-warning: #ffb020;
+  --text-primary: #d5ffe5;
+  --text-secondary: rgba(213, 255, 229, 0.7);
+  --border-glow: rgba(52, 255, 122, 0.25);
+  --panel-radius: 14px;
+  --shadow-depth: 0 20px 44px rgba(0, 0, 0, 0.46);
+
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+
+  --font-display: 'Segoe UI', 'Inter', 'SF Pro Display', sans-serif;
+  --font-telemetry: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', monospace;
+  --font-command: 'Segoe UI', 'Inter', 'SF Pro Text', sans-serif;
+
+  --motion-150: 150ms;
+  --motion-300: 300ms;
+  --motion-700: 700ms;
+
+  --ov-bg: var(--bg-main);
+  --ov-surface: var(--bg-panel);
+  --ov-map: var(--bg-map);
+  --ov-hover: rgba(0, 217, 255, 0.08);
+  --ov-border: var(--border-glow);
+  --ov-text-primary: var(--text-primary);
+  --ov-text-secondary: var(--text-secondary);
+  --ov-accent: var(--accent-green);
+  --ov-warning: var(--accent-warning);
+  --ov-error-text: #ffd2db;
+  --ov-error-bg: rgba(255, 67, 67, 0.14);
+}

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { vizBridge } from '../VizBridge'
 import { useVizStore } from '../useVizStore'
+import { TruthBadge } from '../../components/truth/TruthBadge'
 import { SimEngine } from './SimEngine'
 import './PixelSim.css'
 
@@ -42,6 +43,8 @@ export default function PixelSim() {
   }, [])
 
   const agentList = Array.from(agents.values()).slice(0, 8)
+  const displayAgentLabel = (agent: { id: string; name: string }) =>
+    agent.id === agent.name ? agent.id : `${agent.id} · ${agent.name}`
 
   const statRows = [
     { label: 'PROCESSED', val: stats.processed,                                              color: 'var(--sv-teal)'    },
@@ -53,6 +56,19 @@ export default function PixelSim() {
 
   return (
     <div className="pixel-sim-wrapper">
+      <div className="sv-map-frame sv-map-frame--pixel" aria-hidden="true">
+        <div className="sv-map-frame__header">
+          <span>Synthetic command map</span>
+          <span>{agents.size} units · {log.length} events</span>
+        </div>
+        <div className="sv-map-frame__corners sv-map-frame__corners--tl" />
+        <div className="sv-map-frame__corners sv-map-frame__corners--tr" />
+        <div className="sv-map-frame__corners sv-map-frame__corners--bl" />
+        <div className="sv-map-frame__corners sv-map-frame__corners--br" />
+        <div className="sv-map-frame__scanlines" />
+        <div className="sv-map-frame__micro sv-map-frame__micro--left">synthetic playback</div>
+        <div className="sv-map-frame__micro sv-map-frame__micro--right">pixi surface</div>
+      </div>
       <canvas ref={canvasRef} className="pixel-sim-canvas" />
 
       {/* Top overlay */}
@@ -60,8 +76,9 @@ export default function PixelSim() {
         <div className="pixel-sim-title">
           <span className="pixel-sim-live-dot" />
           <span className="pixel-sim-title-text">⬡ SWARMVISION</span>
-          <span className="pixel-sim-title-sub">— LIVE</span>
+          <span className="pixel-sim-title-sub">— DEMO / SYNTHETIC</span>
         </div>
+        <TruthBadge truthClass="synthetic" />
         <button
           type="button"
           className="pixel-sim-toggle"
@@ -89,7 +106,7 @@ export default function PixelSim() {
                 className="pixel-sim-agent-bar"
                 style={{ background: a.color }}
               />
-              <span className="pixel-sim-agent-name">{a.name}</span>
+              <span className="pixel-sim-agent-name">{displayAgentLabel(a)}</span>
               <span className="pixel-sim-agent-zone">{a.zone}</span>
             </div>
           ))}

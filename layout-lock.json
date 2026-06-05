@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "frozen_at": "2026-06-05",
+  "viewer": "SwarmVision Command Center",
+  "spacing": {
+    "space-8": "8px",
+    "space-12": "12px",
+    "space-16": "16px",
+    "space-24": "24px",
+    "space-32": "32px"
+  },
+  "breakpoints": {
+    "desktop_compact": "1280px",
+    "mobile_stack": "900px"
+  },
+  "theme": {
+    "bg_main": "#050607",
+    "bg_panel": "#091214",
+    "bg_map": "#071018",
+    "accent_green": "#34ff7a",
+    "accent_cyan": "#00d9ff",
+    "accent_red": "#ff4343",
+    "accent_warning": "#ffb020",
+    "text_primary": "#d5ffe5",
+    "border_glow": "rgba(52, 255, 122, 0.25)",
+    "panel_radius": "14px",
+    "shadow_depth": "0 20px 44px rgba(0, 0, 0, 0.46)"
+  },
+  "zones": {
+    "TopCommandBar": {
+      "selector": ".top-command-bar",
+      "behavior": "sticky",
+      "min_height": "58px",
+      "protected": true
+    },
+    "LeftRail": {
+      "selector": ".left-rail",
+      "observe_grid_area": "left",
+      "width_target": "16%",
+      "protected": true
+    },
+    "CenterMap": {
+      "selector": ".center-map-zone",
+      "observe_grid_area": "center",
+      "width_target": "67%",
+      "protected": true
+    },
+    "RightRail": {
+      "selector": ".right-rail",
+      "observe_grid_area": "right",
+      "width_target": "19%",
+      "protected": true
+    },
+    "BottomDock": {
+      "selector": ".bottom-dock",
+      "observe_grid_area": "bottom",
+      "height_range": "96px-132px",
+      "protected": true
+    }
+  },
+  "observe_shell": {
+    "grid_template_columns": [
+      "minmax(188px, 16%)",
+      "minmax(0, 67%)",
+      "minmax(240px, 19%)"
+    ],
+    "grid_template_rows": [
+      "minmax(0, 1fr)",
+      "minmax(96px, 132px)"
+    ],
+    "grid_template_areas": [
+      "left center right",
+      "bottom bottom bottom"
+    ]
+  },
+  "protected_map_surfaces": [
+    "SystemGraphPanel",
+    "BaseGraphView",
+    "ObservabilityGraph",
+    "SwarmDAG",
+    "PixelSim"
+  ],
+  "notes": [
+    "This file locks viewer shell proportions, theme primitives, and protected zones.",
+    "Changes to shell hierarchy, zone ownership, or theme tokens require explicit release review."
+  ]
+}

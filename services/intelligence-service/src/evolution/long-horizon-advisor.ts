@@ -69,7 +69,7 @@ function buildTopologyRecommendation(
     pipeline:    health < 0.55 ? "hub_spoke" : "mesh",
     hub_spoke:   "mesh",
     competitive: "pipeline",
-    chaotic:     "hub_spoke",
+    emergent_hybrid: "hub_spoke",
     consensus:   "pipeline",
   };
 

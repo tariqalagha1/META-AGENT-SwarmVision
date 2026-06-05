@@ -1,6 +1,15 @@
 import { useSyncExternalStore } from 'react'
-import type { WebSocketEvent } from '../types/observability'
+import { normalizeProvenanceEvent, type ProvenanceEvent, type WebSocketEvent } from '../types/observability'
 import type { NormalizedEvent } from '../lib/normalizeEvent'
+import { runtimeConfig } from '../config/runtime'
+import {
+  buildCompatibilityAggregate,
+  classifyTruthLane,
+  guardRuntimeLaneWrite,
+  type IsolationDenialReason,
+  type LaneStores,
+  writeLaneEvent,
+} from './truthRouter'
 
 export type ConnectionState = 'CONNECTED' | 'DISCONNECTED' | 'RECONNECTING'
 export type StreamMode = 'LIVE' | 'PAUSED'
@@ -19,6 +28,20 @@ export type ReplayState = {
   cursorTs?: number
   speed: 0.5 | 1 | 2 | 4
   isPlaying: boolean
+}
+
+export type ReplaySessionState = {
+  view_mode: 'live' | 'replay' | 'split_compare'
+  locked: boolean
+  lock_cursor_ts: number | null
+  cursor_ts: number | null
+  window_start_ts: number | null
+  window_end_ts: number | null
+  speed: 0.25 | 0.5 | 1 | 2
+  is_playing: boolean
+  step_mode: 'event_step' | 'time_step'
+  selected_trace_id: string | null
+  source_label: string
 }
 
 export type ExportOptions = {
@@ -54,6 +77,7 @@ export type ObservabilityEvent = WebSocketEvent & {
   event_id: string
   trace_id: string
   step_index: number
+  provenance: ProvenanceEvent['provenance']
 }
 
 export type RunHistoryStep = {
@@ -76,6 +100,31 @@ export type RunHistoryEntry = {
   errors: string[]
 }
 
+export type StoreScaffoldState = {
+  verifiedRuntime: Record<string, ProvenanceEvent>
+  replay: Record<string, ProvenanceEvent>
+  derivedInsight: Record<string, ProvenanceEvent>
+  syntheticDemo: Record<string, ProvenanceEvent>
+  digitalTwinProjection: Record<string, ProvenanceEvent>
+}
+
+export type CompatibilityAggregateState = {
+  events: Record<string, ProvenanceEvent>
+  eventOrder: string[]
+}
+
+export type IsolationViolation = {
+  timestamp: string
+  trace_id: string
+  event_id: string
+  source_type: ProvenanceEvent['provenance']['source_type'] | 'unknown'
+  attempted_lane: 'verifiedRuntime'
+  reason: IsolationDenialReason
+  source_component: string
+}
+
+export type IsolationCounters = Record<IsolationDenialReason, number>
+
 type IngressEvent = WebSocketEvent | NormalizedEvent
 
 const MAX_EVENTS = 5000
@@ -84,6 +133,10 @@ const MAX_TRACES = 500
 const MAX_INDEX_SIZE = 1000
 const MAX_INSIGHT_INDEX_SIZE = 500
 const EVENT_TTL_MS = 5 * 60 * 1000
+const MAX_ISOLATION_VIOLATIONS = 1000
+
+const isStoreSplitEnabled = () => runtimeConfig.truth.store_split_enabled
+const isSyntheticIsolationEnabled = () => runtimeConfig.truth.synthetic_isolation_enabled
 
 type ObservabilityState = {
   events: Record<string, ObservabilityEvent>
@@ -107,8 +160,13 @@ type ObservabilityState = {
   graphMode: GraphMode
   filters: GraphFilters
   replay: ReplayState
+  replaySession: ReplaySessionState
   exportOptions: ExportOptions
   runHistory: Record<string, RunHistoryEntry>
+  scaffolds: StoreScaffoldState
+  compatibilityAggregate: CompatibilityAggregateState
+  isolationLedger: IsolationViolation[]
+  isolationCounters: IsolationCounters
 }
 
 type ObservabilityActions = {
@@ -132,6 +190,9 @@ type ObservabilityActions = {
   setFilters: (partial: Partial<GraphFilters>) => void
   clearFilters: () => void
   setReplay: (partial: Partial<ReplayState>) => void
+  setReplaySession: (partial: Partial<ReplaySessionState>) => void
+  lockReplaySession: () => void
+  unlockReplaySession: () => void
   resetReplay: () => void
   setExportOptions: (opts: ExportOptions) => void
   upsertRunHistoryFromApiResponse: (payload: {
@@ -176,7 +237,7 @@ const normalizeEvent = (input: IngressEvent): ObservabilityEvent | null => {
       ? input.payload
       : {}
 
-  return {
+  const normalizedBase = {
     ...input,
     event_id: eventId,
     id: input.id ?? eventId,
@@ -189,6 +250,7 @@ const normalizeEvent = (input: IngressEvent): ObservabilityEvent | null => {
     payload,
     context,
   }
+  return normalizeProvenanceEvent(normalizedBase as WebSocketEvent) as ObservabilityEvent
 }
 
 const sortTraceEventIds = (
@@ -387,10 +449,71 @@ const baseState: ObservabilityState = {
     speed: 1,
     isPlaying: false,
   },
+  replaySession: {
+    view_mode: 'live',
+    locked: false,
+    lock_cursor_ts: null,
+    cursor_ts: null,
+    window_start_ts: null,
+    window_end_ts: null,
+    speed: 1,
+    is_playing: false,
+    step_mode: 'event_step',
+    selected_trace_id: null,
+    source_label: 'replay.events',
+  },
   exportOptions: {
     format: 'PNG',
   },
   runHistory: {},
+  scaffolds: {
+    verifiedRuntime: {},
+    replay: {},
+    derivedInsight: {},
+    syntheticDemo: {},
+    digitalTwinProjection: {},
+  },
+  compatibilityAggregate: {
+    events: {},
+    eventOrder: [],
+  },
+  isolationLedger: [],
+  isolationCounters: {
+    SOURCE_TYPE_SYNTHETIC: 0,
+    SOURCE_TYPE_MOCK: 0,
+    SOURCE_TYPE_UNKNOWN: 0,
+    MISSING_PROVENANCE: 0,
+    LANE_MISMATCH: 0,
+    TRUST_LEVEL_NON_RUNTIME: 0,
+    SPOOFED_RUNTIME_SOURCE_COMPONENT: 0,
+    SPOOFED_RUNTIME_SOURCE: 0,
+  },
+}
+
+const recordIsolationViolation = (
+  state: ObservabilityStore,
+  event: ObservabilityEvent,
+  reason: IsolationDenialReason
+): Pick<ObservabilityStore, 'isolationLedger' | 'isolationCounters'> => {
+  const violation: IsolationViolation = {
+    timestamp: new Date().toISOString(),
+    trace_id: String(event.trace_id ?? 'unscoped-trace'),
+    event_id: String(event.event_id ?? ''),
+    source_type: event.provenance?.source_type ?? 'unknown',
+    attempted_lane: 'verifiedRuntime',
+    reason,
+    source_component: String(event.provenance?.source_component ?? ''),
+  }
+  if (import.meta.env.DEV) {
+    console.warn('[isolation] runtime-lane-deny', violation)
+  }
+  return {
+    isolationLedger: [...state.isolationLedger, violation].slice(-MAX_ISOLATION_VIOLATIONS),
+    isolationCounters: {
+      ...state.isolationCounters,
+      [reason]: (state.isolationCounters[reason] ?? 0) + 1,
+    },
+  }
 }
 
 const toStepStatus = (eventType: string): RunHistoryStep['status'] | null => {
@@ -556,6 +679,42 @@ storeState = {
         runHistory: upsertRunHistoryFromEvent(current.runHistory, normalized),
       }
 
+      if (isStoreSplitEnabled()) {
+        const laneStores: LaneStores = {
+          verifiedRuntime: nextState.scaffolds.verifiedRuntime,
+          replay: nextState.scaffolds.replay,
+          derivedInsight: nextState.scaffolds.derivedInsight,
+          syntheticDemo: nextState.scaffolds.syntheticDemo,
+        }
+        const lane = classifyTruthLane(normalized)
+        if (lane === 'verifiedRuntime') {
+          const guard = guardRuntimeLaneWrite({
+            event: normalized,
+            attemptedLane: 'verifiedRuntime',
+            isolationEnabled: isSyntheticIsolationEnabled(),
+          })
+          if (!guard.allowed && guard.reason) {
+            const isolationPatch = recordIsolationViolation(nextState, normalized, guard.reason)
+            nextState.isolationLedger = isolationPatch.isolationLedger
+            nextState.isolationCounters = isolationPatch.isolationCounters
+            return evictOldestTraces(evictOldestEvents(nextState))
+          }
+        }
+        const laneWrite = writeLaneEvent(laneStores, lane, normalized)
+        if (laneWrite.accepted) {
+          const lanes = laneWrite.lanes
+          const compatibilityAggregate = buildCompatibilityAggregate(lanes)
+          nextState.scaffolds = {
+            ...nextState.scaffolds,
+            verifiedRuntime: lanes.verifiedRuntime,
+            replay: lanes.replay,
+            derivedInsight: lanes.derivedInsight,
+            syntheticDemo: lanes.syntheticDemo,
+          }
+          nextState.compatibilityAggregate = compatibilityAggregate
+        }
+      }
+
       return evictOldestTraces(evictOldestEvents(nextState))
     })
   },
@@ -608,6 +767,47 @@ storeState = {
           anomalyEvents,
           insightEvents,
           runHistory: upsertRunHistoryFromEvent(next.runHistory, normalized),
+        }
+
+        if (isStoreSplitEnabled()) {
+          const laneStores: LaneStores = {
+            verifiedRuntime: next.scaffolds.verifiedRuntime,
+            replay: next.scaffolds.replay,
+            derivedInsight: next.scaffolds.derivedInsight,
+            syntheticDemo: next.scaffolds.syntheticDemo,
+          }
+          const lane = classifyTruthLane(normalized)
+          if (lane === 'verifiedRuntime') {
+            const guard = guardRuntimeLaneWrite({
+              event: normalized,
+              attemptedLane: 'verifiedRuntime',
+              isolationEnabled: isSyntheticIsolationEnabled(),
+            })
+            if (!guard.allowed && guard.reason) {
+              const isolationPatch = recordIsolationViolation(next, normalized, guard.reason)
+              next = {
+                ...next,
+                isolationLedger: isolationPatch.isolationLedger,
+                isolationCounters: isolationPatch.isolationCounters,
+              }
+              continue
+            }
+          }
+          const laneWrite = writeLaneEvent(laneStores, lane, normalized)
+          if (laneWrite.accepted) {
+            const lanes = laneWrite.lanes
+            next = {
+              ...next,
+              scaffolds: {
+                ...next.scaffolds,
+                verifiedRuntime: lanes.verifiedRuntime,
+                replay: lanes.replay,
+                derivedInsight: lanes.derivedInsight,
+                syntheticDemo: lanes.syntheticDemo,
+              },
+              compatibilityAggregate: buildCompatibilityAggregate(lanes),
+            }
+          }
         }
       }
 
@@ -714,6 +914,35 @@ storeState = {
       },
     }))
   },
+  setReplaySession: (partial) => {
+    setState((current) => ({
+      ...current,
+      replaySession: {
+        ...current.replaySession,
+        ...partial,
+      },
+    }))
+  },
+  lockReplaySession: () => {
+    setState((current) => ({
+      ...current,
+      replaySession: {
+        ...current.replaySession,
+        locked: true,
+        lock_cursor_ts: current.replaySession.cursor_ts ?? current.replay.cursorTs ?? null,
+      },
+    }))
+  },
+  unlockReplaySession: () => {
+    setState((current) => ({
+      ...current,
+      replaySession: {
+        ...current.replaySession,
+        locked: false,
+        lock_cursor_ts: null,
+      },
+    }))
+  },
   resetReplay: () => {
     setState((current) => ({
       ...current,
@@ -721,6 +950,14 @@ storeState = {
         enabled: false,
         speed: 1,
         isPlaying: false,
+      },
+      replaySession: {
+        ...current.replaySession,
+        view_mode: 'live',
+        locked: false,
+        lock_cursor_ts: null,
+        cursor_ts: null,
+        is_playing: false,
       },
     }))
   },

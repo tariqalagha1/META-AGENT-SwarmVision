@@ -13,6 +13,7 @@ export type {
   ObservabilityEvent,
   ObservabilityStore,
   ReplayState,
+  ReplaySessionState,
   StreamMode,
 } from './useObservabilityStore'
 export {
@@ -29,6 +30,13 @@ export {
   useSelectedTraceEvents,
   useTimelineEvents,
   useTopologyEvents,
+  getTruthClassFromEvent,
+  selectTraceTruthSummary,
+  selectTruthMixSummary,
+  selectReplayScope,
+  selectReplayIntegrity,
+  selectReplayConfidence,
+  selectReplayEventCount,
 } from './selectors'
-export type { GraphData, GraphEdge, GraphNode, GraphViewData } from './selectors'
+export type { GraphData, GraphEdge, GraphNode, GraphViewData, TruthClass } from './selectors'
 export { useEcosystemTraceState } from './ecosystemRuntimeStore'

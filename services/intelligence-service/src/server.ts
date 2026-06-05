@@ -5,6 +5,7 @@ import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
+import jwt from 'jsonwebtoken';
 import { SwarmHealthScorer, ScoringWindow, ScoringEvent } from './scoring/health-scorer';
 import { ExecutiveSummaryGenerator } from './analysis/executive-summary';
 import { KnowledgeGraphBuilder } from './analysis/knowledge-graph';
@@ -57,6 +58,8 @@ import { CivilizationProfile, PlanetaryTreaty, PlanetaryCouncil, CouncilResoluti
 
 const PORT     = parseInt(process.env.PORT    ?? '3004', 10);
 const AUTH_OFF = process.env.AUTH_DISABLED === 'true';
+const JWT_SECRET = process.env.JWT_SECRET ?? '';
+const ALLOWED_ROLES = new Set(['SuperAdmin', 'TenantAdmin', 'Manager', 'User', 'ReadOnly']);
 
 // ── Phase 10 in-memory civilization registry ──────────────────────────────────
 const civilizationRegistry = new Map<string, CivilizationProfile>();
@@ -143,6 +146,34 @@ export function createServer() {
   app.use(cors({ origin: process.env.CORS_ORIGIN ?? '*' }));
   app.use(compression());
   app.use(express.json({ limit: '20mb' }));
+
+  app.use((req, res, next) => {
+    if (AUTH_OFF || req.path === '/health') {
+      next();
+      return;
+    }
+    const header = req.headers.authorization;
+    if (!header?.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Missing bearer token' });
+      return;
+    }
+    if (!JWT_SECRET) {
+      res.status(500).json({ error: 'JWT_SECRET is not configured' });
+      return;
+    }
+    try {
+      const payload = jwt.verify(header.slice(7), JWT_SECRET) as Record<string, unknown>;
+      const role = String(payload.role ?? '');
+      if (!ALLOWED_ROLES.has(role)) {
+        res.status(403).json({ error: 'Invalid role' });
+        return;
+      }
+      (req as Request & { auth?: Record<string, unknown> }).auth = payload;
+      next();
+    } catch {
+      res.status(401).json({ error: 'Invalid or expired token' });
+    }
+  });
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'intelligence-service', ts: Date.now() });
@@ -1495,6 +1526,24 @@ export function createServer() {
   const streams = new Map<string, Set<WebSocket>>();
 
   wss.on('connection', (ws, req) => {
+    if (!AUTH_OFF) {
+      const token = new URL(req.url ?? '', 'http://localhost').searchParams.get('token');
+      if (!token || !JWT_SECRET) {
+        ws.close(4001, 'Missing auth token');
+        return;
+      }
+      try {
+        const payload = jwt.verify(token, JWT_SECRET) as Record<string, unknown>;
+        const role = String(payload.role ?? '');
+        if (!ALLOWED_ROLES.has(role)) {
+          ws.close(4003, 'Invalid role');
+          return;
+        }
+      } catch {
+        ws.close(4002, 'Invalid auth token');
+        return;
+      }
+    }
     const swarm_id = new URL(req.url ?? '', 'http://localhost').searchParams.get('swarm_id');
     if (!swarm_id) { ws.close(4000, 'Missing swarm_id'); return; }
 

@@ -104,6 +104,7 @@ class Neo4jGraphRepository:
 
         payload = event.get("payload", {}) or {}
         context = event.get("context", {}) or {}
+        provenance = event.get("provenance", {}) or {}
         params = {
             "id": event.get("event_id") or event.get("id"),
             "type": event_type,
@@ -144,6 +145,13 @@ class Neo4jGraphRepository:
             "app_name": context.get("app_name"),
             "environment": context.get("environment"),
             "app_version": context.get("version"),
+            "sequence_no": provenance.get("sequence_no", event.get("step_index", 0) + 1),
+            "source_type": provenance.get("source_type", "runtime"),
+            "source_component": provenance.get("source_component", "unknown"),
+            "trust_level": provenance.get("trust_level", "unknown"),
+            "persistence_status": provenance.get(
+                "persistence_status", "live_unpersisted"
+            ),
         }
 
         try:
@@ -187,7 +195,12 @@ class Neo4jGraphRepository:
                 e.app_id = $app_id,
                 e.app_name = $app_name,
                 e.environment = $environment,
-                e.app_version = $app_version
+                e.app_version = $app_version,
+                e.sequence_no = $sequence_no,
+                e.source_type = $source_type,
+                e.source_component = $source_component,
+                e.trust_level = $trust_level,
+                e.persistence_status = $persistence_status
             """,
             **params,
             )
@@ -483,6 +496,18 @@ class Neo4jGraphRepository:
             "decision_flag": node.get("decision_flag"),
             "payload": payload,
             "context": context,
+            "provenance": {
+                "event_id": node.get("event_id", node["id"]),
+                "trace_id": node.get("trace_id") or "unscoped-trace",
+                "sequence_no": int(node.get("sequence_no", node.get("step_index", 0) + 1)),
+                "source_type": node.get("source_type", "replay"),
+                "source_component": node.get("source_component", "neo4j.repository"),
+                "trust_level": node.get("trust_level", "verified"),
+                "persistence_status": node.get("persistence_status", "persisted"),
+                "timestamp": timestamp.isoformat()
+                if isinstance(timestamp, datetime)
+                else str(timestamp),
+            },
         }
 
     @staticmethod

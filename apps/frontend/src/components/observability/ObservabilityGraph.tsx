@@ -29,9 +29,9 @@ export function ObservabilityGraph({
       onEdgeClick={onEdgeClick}
       onInit={onInit}
       onMoveStart={onMoveStart}
-      className="ov-graph-canvas-observability"
-      backgroundColor="#223A5E"
-      backgroundGap={24}
+      className="ov-graph-canvas-observability ov-graph-canvas-premium"
+      backgroundColor="#1d3350"
+      backgroundGap={28}
     />
   )
 }

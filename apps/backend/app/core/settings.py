@@ -75,6 +75,13 @@ class Settings(BaseModel):
     meta_dispatch_semaphore_size: int = int(
         os.getenv("META_DISPATCH_SEMAPHORE_SIZE", "16")
     )
+    ledger_enabled: bool = os.getenv("LEDGER_ENABLED", "true").lower() == "true"
+    provenance_required: bool = (
+        os.getenv("PROVENANCE_REQUIRED", "false").lower() == "true"
+    )
+    ledger_authority_enforced: bool = (
+        os.getenv("LEDGER_AUTHORITY_ENFORCED", "false").lower() == "true"
+    )
 
 
 @lru_cache

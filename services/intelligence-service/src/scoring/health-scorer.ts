@@ -232,3 +232,6 @@ function computeTrend(events: ScoringEvent[]): SwarmHealthReport['health_trend']
   if (delta > 0.05)  return 'degrading';
   return 'stable';
 }
+
+// Compatibility re-exports for modules that import report/agent types from scorer.
+export type { SwarmHealthReport, AgentEfficiencyScore } from '../types';

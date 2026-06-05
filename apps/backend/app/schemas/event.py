@@ -4,7 +4,7 @@ Event Schema Definitions
 Pydantic models for event validation and serialization.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from pydantic import model_validator
 from enum import Enum
 from datetime import datetime
@@ -86,9 +86,15 @@ class Event(BaseModel):
     output_ref: Optional[str] = None
     confidence_score: Optional[float] = None
     decision_flag: Optional[str] = None
+    sequence_no: Optional[int] = None
+    source_type: Optional[str] = None
+    source_component: Optional[str] = None
+    trust_level: Optional[str] = None
+    persistence_status: Optional[str] = None
     source: str
     payload: dict[str, Any] = Field(default_factory=dict)
     context: dict[str, Any] = Field(default_factory=dict)
+    provenance: Optional[dict[str, Any]] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -124,6 +130,8 @@ class Event(BaseModel):
         )
         if values.get("step_index") is None:
             values["step_index"] = 0
+        if values.get("sequence_no") is None:
+            values["sequence_no"] = int(values.get("step_index", 0)) + 1
         return values
 
     @model_validator(mode="after")
@@ -132,8 +140,7 @@ class Event(BaseModel):
         self.type = self.event_type
         return self
     
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class AgentSpawnEvent(Event):
@@ -190,3 +197,4 @@ class HealthCheckEvent(Event):
     """Event: Health check"""
     event_type: EventType = EventType.HEALTH_CHECK
     system_health: dict[str, Any]
+

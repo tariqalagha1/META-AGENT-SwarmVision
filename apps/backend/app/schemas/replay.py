@@ -6,6 +6,17 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
+class ReplayProvenance(BaseModel):
+    event_id: str
+    trace_id: str
+    sequence_no: int
+    source_type: str
+    source_component: str
+    trust_level: str
+    persistence_status: str
+    timestamp: datetime
+
+
 class ReplayAgent(BaseModel):
     id: str
     name: str
@@ -36,6 +47,7 @@ class ReplayEvent(BaseModel):
     step_index: Optional[int] = None
     payload: dict[str, Any] = Field(default_factory=dict)
     context: dict[str, Any] = Field(default_factory=dict)
+    provenance: ReplayProvenance | None = None
 
 
 class ReplayStatusResponse(BaseModel):

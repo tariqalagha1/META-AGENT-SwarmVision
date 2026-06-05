@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FixedSizeList, type ListChildComponentProps } from 'react-window'
 import { useDecisionEvents, useObservabilityStore, usePausedSnapshot } from '../../store'
 import type { DecisionFlag } from '../../design/decisionFlagTokens'
@@ -7,6 +7,8 @@ import { useRelativeTimeTicker } from '../../utils/formatTimestamp'
 import { DecisionRow } from './DecisionRow'
 import { DecisionFilterBar } from './DecisionFilterBar'
 import { EmptyStateCard } from './EmptyStateCard'
+import { TruthBadge } from '../truth/TruthBadge'
+import { getTruthClassFromEvent } from '../../store'
 import './ObservabilityPanels.css'
 
 const DECISION_PANEL_STORAGE_KEY = 'observability.decisionPanel.expanded'
@@ -84,10 +86,11 @@ export function DecisionPanel() {
 
   const hasActiveFilters = flagFilter.length > 0 || debouncedSearchText.trim().length > 0
   const disconnected = connection !== 'CONNECTED'
+  const primaryTruth = getTruthClassFromEvent(visible[0])
 
   const countLabel = hasActiveFilters ? `${visible.length} / ${capped.length}` : String(visible.length)
 
-  const handleSelectDecision = (event: DecisionEvent) => {
+  const handleSelectDecision = useCallback((event: DecisionEvent) => {
     const eventId = event.event_id ?? event.id
     selectEvent(eventId)
 
@@ -98,7 +101,7 @@ export function DecisionPanel() {
     if (event.agent_id) {
       selectAgent(event.agent_id)
     }
-  }
+  }, [selectAgent, selectEvent, selectTrace])
 
   const handleClearFilters = () => {
     setFlagFilter([])
@@ -111,7 +114,7 @@ export function DecisionPanel() {
       decisions: visible,
       onSelectDecision: handleSelectDecision,
     }),
-    [visible]
+    [handleSelectDecision, visible]
   )
 
   return (
@@ -130,6 +133,7 @@ export function DecisionPanel() {
         </button>
 
         <div className="ov-decisions-header-right">
+          <TruthBadge truthClass={primaryTruth} />
           {disconnected ? <span className="ov-decisions-disconnected">Disconnected</span> : null}
           <span className="ov-alert-count-pill">{countLabel}</span>
         </div>
@@ -190,3 +194,6 @@ export function DecisionPanel() {
     </section>
   )
 }
+
+
+

@@ -431,7 +431,8 @@
 }
 
 .ov-panel-graph-immersive .ov-graph-node {
-  transform: scale(1.18);
+  /* Keep node geometry 1:1 with ReactFlow anchors so edges connect exactly */
+  transform: none;
   transform-origin: center center;
 }
 

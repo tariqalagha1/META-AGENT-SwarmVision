@@ -90,7 +90,7 @@ export function translatePolicy(
   let translated = policyBody;
 
   // Simple doctrine-aware term substitution
-  const SUBSTITUTIONS: Record<string, Record<string, string>> = {
+  const SUBSTITUTIONS: Record<string, Record<string, Record<string, string>>> = {
     hierarchical_mandate: { decentralized_autonomy: { 'mandate': 'recommendation', 'order': 'proposal', 'authority': 'coordinator' } },
     decentralized_autonomy: { hierarchical_mandate: { 'recommendation': 'mandate', 'proposal': 'directive', 'optional': 'required' } },
     consensus_democracy: { hierarchical_mandate: { 'approved by all': 'directed by authority', 'quorum': 'executive decision' } },

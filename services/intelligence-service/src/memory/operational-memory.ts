@@ -2,9 +2,8 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import {
-  SwarmHistoryRecord, OperationalTrend, TrendSample,
+  SwarmHistoryRecord, OperationalTrend, TrendSample, SwarmHealthReport,
 } from '../types';
-import { SwarmHealthReport } from '../scoring/health-scorer';
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -120,8 +119,8 @@ export class OperationalMemory {
     })[];
     return rows.map(r => ({
       ...r,
-      bottleneck_kinds: JSON.parse(r.bottleneck_kinds) as string[],
-      incident_kinds:   JSON.parse(r.incident_kinds)   as string[],
+      bottleneck_kinds: parseStringArray(r.bottleneck_kinds),
+      incident_kinds:   parseStringArray(r.incident_kinds),
     }));
   }
 
@@ -132,8 +131,8 @@ export class OperationalMemory {
     if (!r) return undefined;
     return {
       ...r,
-      bottleneck_kinds: JSON.parse(r.bottleneck_kinds) as string[],
-      incident_kinds:   JSON.parse(r.incident_kinds)   as string[],
+      bottleneck_kinds: parseStringArray(r.bottleneck_kinds),
+      incident_kinds:   parseStringArray(r.incident_kinds),
     };
   }
 
@@ -225,4 +224,14 @@ export class OperationalMemory {
 
 function avg(values: number[]): number {
   return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+}
+
+function parseStringArray(raw: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === 'string');
+  } catch {
+    return [];
+  }
 }

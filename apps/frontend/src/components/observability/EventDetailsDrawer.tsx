@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useObservabilityStore } from '../../store/useObservabilityStore'
 import { usePausedSnapshot, useSelectedEvent } from '../../store'
 import { EventTypePill } from './EventTypePill'
@@ -113,15 +113,15 @@ export function EventDetailsDrawer() {
   const drawerRef = useRef<HTMLDivElement | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
 
-  const closeDrawer = () => {
+  const closeDrawer = useCallback(() => {
     clearSelectedEvent()
     focusLastDrawerTriggerElement()
-  }
+  }, [clearSelectedEvent])
 
   useEffect(() => {
     if (!isOpen) return
     closeButtonRef.current?.focus()
-  }, [isOpen])
+  }, [closeDrawer, isOpen])
 
   useEffect(() => {
     if (!isOpen) return
@@ -157,7 +157,7 @@ export function EventDetailsDrawer() {
 
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
-  }, [isOpen])
+  }, [closeDrawer, isOpen])
 
   const display = useMemo(() => {
     if (!selectedEvent) return null
@@ -251,3 +251,6 @@ export function EventDetailsDrawer() {
     </>
   )
 }
+
+
+

@@ -5,6 +5,9 @@ import './TopNav.css'
 interface TopNavProps {
   mode: AppMode
   onModeChange: (m: AppMode) => void
+  streamStatus?: string
+  scopeLabel?: string
+  channelSummary?: string
 }
 
 const TABS: { key: AppMode; i18nKey: string }[] = [
@@ -13,21 +16,29 @@ const TABS: { key: AppMode; i18nKey: string }[] = [
   { key: 'command',   i18nKey: 'nav.command'    },
 ]
 
-export function TopNav({ mode, onModeChange }: TopNavProps) {
+export function TopNav({ mode, onModeChange, streamStatus, scopeLabel, channelSummary }: TopNavProps) {
   const { t, i18n } = useTranslation()
+  const currentLang = i18n.language ?? 'en'
 
   const toggleLang = () => {
-    const next = i18n.language.startsWith('ar') ? 'en' : 'ar'
+    const next = currentLang.startsWith('ar') ? 'en' : 'ar'
     void i18n.changeLanguage(next)
     document.documentElement.dir = next === 'ar' ? 'rtl' : 'ltr'
     document.documentElement.lang = next
   }
 
   return (
-    <nav className="top-nav">
+    <nav className="top-command-bar top-nav" aria-label="Swarm Vision command bar">
       <div className="top-nav-brand">
         <span className="top-nav-hex">⬡</span>
-        <span className="top-nav-title">{t('header.title')}</span>
+        <div className="top-nav-brand-copy">
+          <span className="top-nav-title">{t('header.title')}</span>
+          <div className="top-nav-meta">
+            {streamStatus ? <span className="top-nav-meta-pill">{streamStatus}</span> : null}
+            {channelSummary ? <span className="top-nav-meta-pill">{channelSummary}</span> : null}
+            {scopeLabel ? <span className="top-nav-meta-text">{scopeLabel}</span> : null}
+          </div>
+        </div>
       </div>
 
       <div className="top-nav-tabs" role="tablist">
@@ -51,7 +62,7 @@ export function TopNav({ mode, onModeChange }: TopNavProps) {
         onClick={toggleLang}
         title="Switch language / تغيير اللغة"
       >
-        {i18n.language.startsWith('ar') ? 'EN' : 'عربي'}
+        {currentLang.startsWith('ar') ? 'EN' : 'عربي'}
       </button>
     </nav>
   )

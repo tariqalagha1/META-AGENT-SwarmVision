@@ -135,6 +135,7 @@ export interface SafetyConstraint {
   name: string;
   description: string;
   applies_to: string[];    // action kinds this constrains
+  applies_to_json?: string; // db-mapped serialized form used at persistence boundaries
   threshold: number | null; // numeric threshold if applicable
   enforced_by: "system" | "operator_id";
   active: boolean;

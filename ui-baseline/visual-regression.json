@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "captured_at": "2026-06-05",
+  "viewports": {
+    "desktop": { "width": 1920, "height": 1200 },
+    "tablet": { "width": 1024, "height": 1366 }
+  },
+  "modes": [
+    "observe",
+    "visualize-ops",
+    "visualize-demo",
+    "command"
+  ],
+  "protected_surfaces": [
+    { "name": "TopCommandBar", "selector": ".top-command-bar" },
+    { "name": "LeftRail", "selector": ".left-rail" },
+    { "name": "CenterMap", "selector": ".center-map-zone" },
+    { "name": "RightRail", "selector": ".right-rail" },
+    { "name": "BottomDock", "selector": ".bottom-dock" }
+  ],
+  "baseline_files": [
+    "desktop/observe.png",
+    "desktop/visualize-ops.png",
+    "desktop/visualize-demo.png",
+    "desktop/command.png",
+    "tablet/observe.png",
+    "tablet/visualize-ops.png",
+    "tablet/visualize-demo.png",
+    "tablet/command.png"
+  ],
+  "notes": [
+    "This manifest protects release shell structure and baseline capture coverage.",
+    "It is intentionally selector-driven because live/mock content varies across runs."
+  ]
+}

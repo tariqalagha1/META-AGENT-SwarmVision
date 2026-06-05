@@ -13,6 +13,7 @@ import { agentStateTokens } from '../../design/agentStateTokens'
 import { defaultEventTypeToken, eventTypeTokens } from '../../design/eventTypeTokens'
 import {
   useFilteredGraphData,
+  selectTruthMixSummary,
   type GraphMode,
   useObservabilityStore,
   usePausedSnapshot,
@@ -28,6 +29,7 @@ import { ObservabilityGraph } from './ObservabilityGraph'
 import { PipelineExecutionView } from './PipelineExecutionView'
 import { CinematicSwarmView } from './CinematicSwarmView'
 import { ReplayControls } from './ReplayControls'
+import { TruthBadge } from '../truth/TruthBadge'
 import './ObservabilityPanels.css'
 
 type SystemGraphPanelProps = {
@@ -61,6 +63,8 @@ const ACTIVITY_WINDOW_MS = 2000
 const TIER_X: Record<number, number> = { 0: 40, 1: 240, 2: 440, 3: 600 }
 const WORKER_IDS = ['agent-0', 'agent-1', 'agent-2', 'agent-3', 'agent-4', 'agent-5']
 const Y_CENTER = 200
+const SUPERVISOR_ADMIN_ID = 'admin-agent'
+const SUPERVISOR_MANAGER_ID = 'manager-agent'
 // 6 workers × 64px gap — Y span 40–360, fits in 408px canvas at any zoom
 const WORKER_Y_POSITIONS = [
   Y_CENTER - 160,
@@ -74,7 +78,18 @@ const WORKER_Y_POSITIONS = [
 // Node IDs that are infrastructure artifacts — excluded from the pipeline graph
 const EXCLUDED_NODE_IDS = new Set(['system'])
 
+function isRenderableAgentNodeId(nodeId: string): boolean {
+  if (!nodeId) return false
+  if (nodeId === SUPERVISOR_ADMIN_ID || nodeId === SUPERVISOR_MANAGER_ID) return true
+  if (nodeId === 'intake-agent' || nodeId === 'dispatch-agent' || nodeId === 'hitl-agent') return true
+  if (/^agent-\d+$/.test(nodeId)) return true
+  if (/-agent$/.test(nodeId)) return true
+  return false
+}
+
 function stableNodePosition(nodeId: string): { x: number; y: number } {
+  if (nodeId === SUPERVISOR_ADMIN_ID) return { x: 240, y: 16 }
+  if (nodeId === SUPERVISOR_MANAGER_ID) return { x: 440, y: 16 }
   if (nodeId === 'intake-agent')   return { x: TIER_X[0], y: Y_CENTER }
   if (nodeId === 'dispatch-agent') return { x: TIER_X[2], y: Y_CENTER }
   if (nodeId === 'hitl-agent')     return { x: TIER_X[3], y: Y_CENTER }
@@ -105,6 +120,9 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
   const traces = useObservabilityStore((s) => s.traces)
   const events = useObservabilityStore((s) => s.events)
   const eventCount = useObservabilityStore((s) => s.eventOrder.length)
+  const truthSummary = selectTruthMixSummary(useObservabilityStore((s) => s))
+  const primaryTruth = (Object.entries(truthSummary).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    'unknown') as 'runtime' | 'replay' | 'derived' | 'synthetic' | 'mock' | 'unknown'
   const safeMode = useObservabilityStore((s) => s.safeMode)
   const graphMode = useObservabilityStore((s) => s.graphMode)
   const filters = useObservabilityStore((s) => s.filters)
@@ -180,15 +198,47 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
     const positions = new Map<string, { x: number; y: number }>()
     for (const node of graphData.nodes) {
       if (EXCLUDED_NODE_IDS.has(node.id)) continue
+      if (!isRenderableAgentNodeId(node.id)) continue
       positions.set(node.id, stableNodePosition(node.id))
     }
+    positions.set(SUPERVISOR_ADMIN_ID, stableNodePosition(SUPERVISOR_ADMIN_ID))
+    positions.set(SUPERVISOR_MANAGER_ID, stableNodePosition(SUPERVISOR_MANAGER_ID))
     return positions
   }, [graphData.nodes])
+
+  const nodesWithSupervisors = useMemo(() => {
+    const filteredNodes = graphData.nodes.filter(
+      (node) => !EXCLUDED_NODE_IDS.has(node.id) && isRenderableAgentNodeId(node.id)
+    )
+    const existingIds = new Set(filteredNodes.map((node) => node.id))
+    const syntheticNodes = []
+    const now = Date.now()
+    if (!existingIds.has(SUPERVISOR_ADMIN_ID)) {
+      syntheticNodes.push({
+        id: SUPERVISOR_ADMIN_ID,
+        state: 'ACTIVE' as const,
+        lastEventTimestamp: now,
+      })
+    }
+    if (!existingIds.has(SUPERVISOR_MANAGER_ID)) {
+      syntheticNodes.push({
+        id: SUPERVISOR_MANAGER_ID,
+        state: 'ACTIVE' as const,
+        lastEventTimestamp: now,
+      })
+    }
+    return [...filteredNodes, ...syntheticNodes]
+  }, [graphData.nodes])
+
+  const renderableNodeIds = useMemo(
+    () => new Set(nodesWithSupervisors.map((node) => node.id)),
+    [nodesWithSupervisors]
+  )
 
   const nextNodeMap = useMemo(() => {
     const now = Date.now()
     return new Map(
-      graphData.nodes
+      nodesWithSupervisors
         .filter((node) => !EXCLUDED_NODE_IDS.has(node.id))
         .map((node) => {
         // Always use the tier layout — never let a stale stored position override it
@@ -200,7 +250,12 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
           id: node.id,
           position: persistedPosition,
           data: {
-            label: node.id,
+            label:
+              node.id === SUPERVISOR_ADMIN_ID
+                ? 'admin-agent'
+                : node.id === SUPERVISOR_MANAGER_ID
+                  ? 'manager-agent'
+                  : node.id,
             state: node.state,
             recentlyActive,
             safeMode,
@@ -241,12 +296,20 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
         return [node.id, nextNode]
       })
     )
-  }, [baseNodePositions, diagnosticSeverityForFocusedTrace, focusedAgentIds, graphData.nodes, runtimeNodeState, safeMode])
+  }, [baseNodePositions, diagnosticSeverityForFocusedTrace, focusedAgentIds, nodesWithSupervisors, runtimeNodeState, safeMode])
 
   const nextEdgeMap = useMemo(() => {
     const mapped = new Map(
       graphData.edges
-        .filter((edge) => !EXCLUDED_NODE_IDS.has(edge.source) && !EXCLUDED_NODE_IDS.has(edge.target))
+        .filter(
+          (edge) =>
+            !EXCLUDED_NODE_IDS.has(edge.source) &&
+            !EXCLUDED_NODE_IDS.has(edge.target) &&
+            isRenderableAgentNodeId(edge.source) &&
+            isRenderableAgentNodeId(edge.target) &&
+            renderableNodeIds.has(edge.source) &&
+            renderableNodeIds.has(edge.target)
+        )
         .map((edge) => {
         const edgeToken = eventTypeTokens[edge.interactionType] ?? defaultEventTypeToken
         const motionState = runtimeEdgeState(edge.source, edge.target)
@@ -263,7 +326,7 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
           id: edge.key,
           source: edge.source,
           target: edge.target,
-          type: 'smoothstep',   // routes around nodes, avoids crossing tangled beziers
+          type: 'straight',
           animated: !safeMode && (isFlowing || isRetrying),
           style: {
             stroke: strokeColor,
@@ -286,6 +349,53 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
         return [edge.key, nextEdge]
       })
     )
+
+    const ensureEdge = (
+      id: string,
+      source: string,
+      target: string,
+      color = '#22d3ee',
+      dash: string | undefined = undefined
+    ) => {
+      if (EXCLUDED_NODE_IDS.has(source) || EXCLUDED_NODE_IDS.has(target)) return
+      if (!renderableNodeIds.has(source) || !renderableNodeIds.has(target)) return
+      const edge: Edge = {
+        id,
+        source,
+        target,
+        type: 'straight',
+        animated: true,
+        style: {
+          stroke: color,
+          strokeWidth: 1.8,
+          strokeDasharray: dash,
+          opacity: 0.6,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color,
+          width: 14,
+          height: 14,
+        },
+        data: {
+          terminalEventId: undefined,
+          interactionType: 'FLOW_EVENT',
+        },
+      }
+      if (!mapped.has(id)) mapped.set(id, edge)
+    }
+
+    // Supervisory chain
+    ensureEdge('super-admin-manager', SUPERVISOR_ADMIN_ID, SUPERVISOR_MANAGER_ID, '#60a5fa')
+    ensureEdge('super-manager-intake', SUPERVISOR_MANAGER_ID, 'intake-agent', '#22d3ee')
+    ensureEdge('super-manager-dispatch', SUPERVISOR_MANAGER_ID, 'dispatch-agent', '#22d3ee', '3 4')
+
+    // Backbone worker direction links: intake -> worker -> dispatch
+    for (const workerId of WORKER_IDS) {
+      ensureEdge(`backbone-intake-${workerId}`, 'intake-agent', workerId, '#22d3ee')
+      ensureEdge(`backbone-${workerId}-dispatch`, workerId, 'dispatch-agent', '#22d3ee')
+    }
+    ensureEdge('backbone-dispatch-hitl', 'dispatch-agent', 'hitl-agent', '#22d3ee')
 
     if (runtimeTraceState) {
       for (const [nodeId, node] of Object.entries(runtimeTraceState.nodes)) {
@@ -315,7 +425,7 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
     }
 
     return mapped
-  }, [graphData.edges, runtimeEdgeState, runtimeTraceState, safeMode])
+  }, [graphData.edges, renderableNodeIds, runtimeEdgeState, runtimeTraceState, safeMode])
 
   const [nodes, setNodes] = useState<Node<GraphNodeData>[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
@@ -523,6 +633,8 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
   )
   const modeEdges = useMemo(() => adaptEdgesForMode(edges, graphMode), [edges, graphMode])
   const cinematicMode = graphMode === 'CINEMATIC'
+  const selectedTraceLabel = focusTraceId ? focusTraceId.slice(0, 18) : null
+  const selectedAgentLabel = selectedAgentId ? selectedAgentId.slice(0, 18) : null
 
   const handleNodeClickForMode = handleNodeClick as unknown as NodeMouseHandler<Node>
   const handleNodeDragStopForMode = handleNodeDragStop as unknown as NodeMouseHandler<Node>
@@ -566,6 +678,7 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
       <section className="ov-panel ov-panel-graph ov-panel-graph-immersive" aria-label="System graph panel">
         <header className="ov-panel-header ov-floating-header">
           <h2>System Graph</h2>
+          <TruthBadge truthClass={primaryTruth} />
         </header>
         <div className="ov-floating-controls">
           <GraphControlsBar onExportPng={exportPng} onExportJson={exportJson} />
@@ -582,8 +695,26 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
   return (
     <section className="ov-panel ov-panel-graph ov-panel-graph-immersive" aria-label="System graph panel">
       <header className="ov-panel-header ov-floating-header">
-        <h2>System Graph</h2>
+        <div className="ov-map-panel-title">
+          <h2>System Graph</h2>
+          <span className="ov-map-panel-subtitle">Executive command surface</span>
+        </div>
+        <div className="ov-map-panel-badges">
+          <span className="ov-map-panel-chip">{graphMode.toLowerCase()}</span>
+          <TruthBadge truthClass={primaryTruth} />
+        </div>
       </header>
+
+      <div className="ov-map-status-ribbon" aria-label="Graph status ribbon">
+        <span className="ov-map-status-item">{disconnected ? 'link offline' : 'link nominal'}</span>
+        <span className="ov-map-status-item">{isPaused ? 'visual stream paused' : 'visual stream live'}</span>
+        <span className="ov-map-status-item">
+          {selectedTraceLabel ? `trace ${selectedTraceLabel}` : 'trace auto-focus'}
+        </span>
+        <span className="ov-map-status-item">
+          {selectedAgentLabel ? `selection ${selectedAgentLabel}` : 'selection awaiting'}
+        </span>
+      </div>
 
       {!cinematicMode ? (
         <div className="ov-floating-controls">
@@ -604,3 +735,5 @@ export function SystemGraphPanel({ tenantId, appId, disconnected }: SystemGraphP
     </section>
   )
 }
+
+

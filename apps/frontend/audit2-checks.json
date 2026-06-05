@@ -1,0 +1,124 @@
+{
+  "canvasData": {
+    "found": true,
+    "width": 900,
+    "height": 420,
+    "center": [
+      4,
+      9,
+      22,
+      255
+    ],
+    "topLeft": [
+      1,
+      79,
+      85,
+      255
+    ],
+    "room1Center": [
+      4,
+      15,
+      31,
+      255
+    ],
+    "room2Center": [
+      28,
+      18,
+      18,
+      255
+    ],
+    "pipeline1": [
+      2,
+      13,
+      26,
+      255
+    ],
+    "bottomBar": [
+      1,
+      3,
+      10,
+      255
+    ],
+    "topBar": [
+      6,
+      13,
+      28,
+      255
+    ]
+  },
+  "zoneLabels": [
+    "INTAKE",
+    "FORGE",
+    "QA SCAN",
+    "ROUTER",
+    "MEMORY",
+    "DISPATCH",
+    "AUDIT",
+    "HITL"
+  ],
+  "badges": [
+    "IDLE",
+    "IDLE",
+    "IDLE",
+    "ACTIVE",
+    "IDLE",
+    "ACTIVE",
+    "ACTIVE",
+    "ACTIVE"
+  ],
+  "stats": [
+    {
+      "label": "PROCESSED",
+      "val": "3",
+      "color": "rgb(45, 212, 191)"
+    },
+    {
+      "label": "SHIPPED",
+      "val": "3",
+      "color": "rgb(16, 185, 129)"
+    },
+    {
+      "label": "ACTIVE",
+      "val": "6",
+      "color": "rgb(245, 158, 11)"
+    },
+    {
+      "label": "ERRORS",
+      "val": "0",
+      "color": "rgb(239, 68, 68)"
+    },
+    {
+      "label": "LATENCY",
+      "val": "—",
+      "color": "rgb(99, 102, 241)"
+    }
+  ],
+  "edgeAnim": {
+    "hasFlowDash": true,
+    "edgeCount": 15,
+    "dashArray": "5px, 15px"
+  },
+  "toggleCheck": {
+    "found": true,
+    "fontFamily": "\"JetBrains Mono\", \"IBM Plex Mono\", monospace",
+    "background": "rgba(8, 12, 20, 0.96) none repeat scroll 0% 0% / auto padding-box border-box",
+    "border": "1px solid rgb(30, 45, 61)"
+  },
+  "errors": [
+    "[warning] WebSocket connection to 'ws://localhost:8012/events' failed: WebSocket is closed before the connection is established.",
+    "[warning] WebSocket connection to 'ws://localhost:8012/metrics' failed: WebSocket is closed before the connection is established.",
+    "[warning] WebSocket connection to 'ws://localhost:8012/alerts' failed: WebSocket is closed before the connection is established.",
+    "[warning] WebSocket connection to 'ws://localhost:8012/agents' failed: WebSocket is closed before the connection is established.",
+    "[error] WebSocket error: Event",
+    "[error] WebSocket error: Event",
+    "[error] WebSocket error: Event",
+    "[error] WebSocket error: Event",
+    "[warning] [.WebGL-0x639c018ffe00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[warning] [.WebGL-0x639c018ffe00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+    "[warning] WebGL: INVALID_OPERATION: uniformMatrix3fv: location is not from the associated program",
+    "[warning] WebGL: INVALID_OPERATION: uniformMatrix3fv: location is not from the associated program",
+    "[warning] WebGL: INVALID_OPERATION: uniformMatrix3fv: location is not from the associated program",
+    "[warning] WebGL: INVALID_OPERATION: uniformMatrix3fv: location is not from the associated program",
+    "[warning] WebGL: INVALID_OPERATION: uniformMatrix3fv: location is not from the associated program"
+  ]
+}
